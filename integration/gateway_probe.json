@@ -1,0 +1,48 @@
+{
+  "base": "https://privseai.com/privseai/llm/v1",
+  "model": "auto/best-fast",
+  "by_ua": {
+    "python-urllib/3.11": {
+      "rows": [
+        {
+          "code": 400,
+          "s": 6.37,
+          "body": "{\"error\":{\"message\":\"[400]: Upstream request failed: Model is unavailable. [nvidia/z-ai/glm-5.2 (410), oc/north-mini-code-free (400), felo/felo-social (400), fe"
+        },
+        {
+          "code": 400,
+          "s": 3.85,
+          "body": "{\"error\":{\"message\":\"[400]: Upstream request failed: Model is unavailable. [oc/hy3-free (400), oc/north-mini-code-free (400), oc/deepseek-v4-flash-free (400), o"
+        },
+        {
+          "code": 400,
+          "s": 1.94,
+          "body": "{\"error\":{\"message\":\"[400]: Upstream request failed: Model is unavailable. [oc/hy3-free (400), oc/north-mini-code-free (400), oc/deepseek-v4-flash-free (400), o"
+        }
+      ],
+      "success": "0/3",
+      "median_s": null
+    },
+    "MayaLive/0.1 (+https://privseai.com/maya)": {
+      "rows": [
+        {
+          "code": 400,
+          "s": 1.14,
+          "body": "{\"error\":{\"message\":\"[400]: Upstream request failed: Model is unavailable. [oc/hy3-free (400), oc/north-mini-code-free (400), oc/deepseek-v4-flash-free (400), o"
+        },
+        {
+          "code": 400,
+          "s": 4.26,
+          "body": "{\"error\":{\"message\":\"[400]: Upstream request failed: Model is unavailable. [oc/hy3-free (400), oc/north-mini-code-free (400), oc/deepseek-v4-flash-free (400), o"
+        },
+        {
+          "code": 400,
+          "s": 1.91,
+          "body": "{\"error\":{\"message\":\"[400]: Upstream request failed: Model is unavailable. [oc/hy3-free (400), oc/north-mini-code-free (400), oc/deepseek-v4-flash-free (400), o"
+        }
+      ],
+      "success": "0/3",
+      "median_s": null
+    }
+  }
+}

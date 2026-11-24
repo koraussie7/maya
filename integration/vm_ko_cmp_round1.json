@@ -1,0 +1,119 @@
+{
+  "prompt": {
+    "chars": 345,
+    "mode": "short"
+  },
+  "facts_input": [
+    "나는 채식주의자이고 견과류에 알레르기가 있어요.",
+    "내 이름은 김민수이고 서울에 살아요.",
+    "회사는 판교에 있고, 아침 9시에 출근해요."
+  ],
+  "runs": [
+    {
+      "seconds": 152.8,
+      "raw": "{\n  \"memory\": [\n    {\"id\": \"0\", \"text\": \"나는 채식주의자이고 견과류에 알레르기가 있어요.\", \"attributed_to\": \"user\", \"attribute\": \"\"},\n    {\"id\": \"1\", \"text\": \"내 이름은 김민수이고 서울에 살아요.\", \"attributed_to\": \"user\", \"attribute\": \"\"},\n    {\"id\": \"2\", \"text\": \"회사는 판교에 있고, 아침 9시에 출근해요.\", \"attributed_to\": \"user\", \"attribute\": \"\"}\n  ]\n}",
+      "finish": "stop",
+      "tokens": {
+        "prompt": 210,
+        "completion": 123
+      },
+      "parsed": [
+        {
+          "text": "나는 채식주의자이고 견과류에 알레르기가 있어요.",
+          "attribute": ""
+        },
+        {
+          "text": "내 이름은 김민수이고 서울에 살아요.",
+          "attribute": ""
+        },
+        {
+          "text": "회사는 판교에 있고, 아침 9시에 출근해요.",
+          "attribute": ""
+        }
+      ],
+      "json_ok": true,
+      "model": "llama3.1:8b",
+      "score": {
+        "n_facts": 3,
+        "korean_ratio": 1.0,
+        "has_hangul": true,
+        "foreign_cjk": 0,
+        "coverage_per_sentence": [
+          3,
+          2,
+          4
+        ],
+        "coverage": "9/9",
+        "texts": [
+          "나는 채식주의자이고 견과류에 알레르기가 있어요.",
+          "내 이름은 김민수이고 서울에 살아요.",
+          "회사는 판교에 있고, 아침 9시에 출근해요."
+        ]
+      }
+    },
+    {
+      "seconds": 92.6,
+      "raw": "{\"memory\": [{\"id\": \"0\", \"text\": \"나는 채식주의자이고 견과류에 알레르기가 있어요.\", \"attributed_to\": \"user\", \"attribute\": \"개인 사실\"}]}",
+      "finish": "stop",
+      "tokens": {
+        "prompt": 209,
+        "completion": 48
+      },
+      "parsed": [
+        {
+          "text": "나는 채식주의자이고 견과류에 알레르기가 있어요.",
+          "attribute": "개인 사실"
+        }
+      ],
+      "json_ok": true,
+      "model": "hermes3:8b",
+      "score": {
+        "n_facts": 1,
+        "korean_ratio": 1.0,
+        "has_hangul": true,
+        "foreign_cjk": 0,
+        "coverage_per_sentence": [
+          3,
+          0,
+          0
+        ],
+        "coverage": "3/9",
+        "texts": [
+          "나는 채식주의자이고 견과류에 알레르기가 있어요."
+        ]
+      }
+    },
+    {
+      "seconds": 80.3,
+      "raw": "{\"memory\": [{\"id\": \"0\", \"text\": \"나는 채식주의자이고 견과류에 알레르기가 있어요.\", \"attributed_to\": \"user\", \"attribute\": \"\"}]}",
+      "finish": "stop",
+      "tokens": {
+        "prompt": 209,
+        "completion": 45
+      },
+      "parsed": [
+        {
+          "text": "나는 채식주의자이고 견과류에 알레르기가 있어요.",
+          "attribute": ""
+        }
+      ],
+      "json_ok": true,
+      "model": "dolphin-llama3:8b",
+      "score": {
+        "n_facts": 1,
+        "korean_ratio": 1.0,
+        "has_hangul": true,
+        "foreign_cjk": 0,
+        "coverage_per_sentence": [
+          3,
+          0,
+          0
+        ],
+        "coverage": "3/9",
+        "texts": [
+          "나는 채식주의자이고 견과류에 알레르기가 있어요."
+        ]
+      }
+    }
+  ]
+}

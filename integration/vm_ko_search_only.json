@@ -1,0 +1,89 @@
+{
+  "room": ".vm-ko-test",
+  "store": {
+    "path": "/Users/brianyeon/CodeGPT/maya-2/.vm-ko-test/vectors",
+    "exists": true,
+    "meta_readable": false,
+    "error": "ModuleNotFoundError: No module named 'lmdb'"
+  },
+  "search": [
+    {
+      "label": "식이 제한",
+      "query": "내 식이 제한이 뭐야?",
+      "ms": 1185,
+      "hits": [
+        {
+          "text": "User: 나는 채식주의자이고 견과류에 알레르기가 있어요.",
+          "score": 0.8282,
+          "base": 0.8282,
+          "time_boost": false
+        },
+        {
+          "text": "User is a vegetarian and has an allergy to nuts",
+          "score": 0.7397,
+          "base": 0.7397,
+          "time_boost": false
+        },
+        {
+          "text": "User is a vegetarian and has an allergy to nuts",
+          "score": 0.7397,
+          "base": 0.7397,
+          "time_boost": false
+        }
+      ],
+      "path": "store.search"
+    },
+    {
+      "label": "거주지/이름",
+      "query": "내가 사는 곳이 어디라고 했지?",
+      "ms": 76,
+      "hits": [
+        {
+          "text": "User: 나는 채식주의자이고 견과류에 알레르기가 있어요.",
+          "score": 0.8107,
+          "base": 0.8107,
+          "time_boost": false
+        },
+        {
+          "text": "User is a vegetarian and has an allergy to nuts",
+          "score": 0.7016,
+          "base": 0.7016,
+          "time_boost": false
+        },
+        {
+          "text": "User is a vegetarian and has an allergy to nuts",
+          "score": 0.7016,
+          "base": 0.7016,
+          "time_boost": false
+        }
+      ],
+      "path": "store.search"
+    },
+    {
+      "label": "직장",
+      "query": "출근 시간이 몇 시였지?",
+      "ms": 73,
+      "hits": [
+        {
+          "text": "User: 나는 채식주의자이고 견과류에 알레르기가 있어요.",
+          "score": 0.7796,
+          "base": 0.7796,
+          "time_boost": false
+        },
+        {
+          "text": "User is a vegetarian and has an allergy to nuts",
+          "score": 0.6966,
+          "base": 0.6966,
+          "time_boost": false
+        },
+        {
+          "text": "User is a vegetarian and has an allergy to nuts",
+          "score": 0.6966,
+          "base": 0.6966,
+          "time_boost": false
+        }
+      ],
+      "path": "store.search"
+    }
+  ]
+}

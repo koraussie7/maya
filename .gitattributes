@@ -1,0 +1,1 @@
+maya/models/tts/piper/ko_KR-kss-medium.onnx filter=lfs diff=lfs merge=lfs -text

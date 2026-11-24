@@ -1,0 +1,28 @@
+{
+  "project": "lyra_vex_b",
+  "source_clip": "/Users/brianyeon/CodeGPT/maya-2/maya/models/tts/reference/clip_ref_lyra_vex_b.wav",
+  "source_secs": 7.98,
+  "cut_offset_secs": 0.06,
+  "output": {
+    "file": "ref.wav",
+    "sr": 22050,
+    "channels": 1,
+    "sample_format": "s16le",
+    "secs": 4.5,
+    "peak_normalized": 0.95
+  },
+  "ref_text": "찾 아 봤 는데 보통 채 지 피티나 크로드 프로 같 은 건 한 달 에 20 불 정도 거든 물론 더.",
+  "qpclone_settings": {
+    "LANGUAGE": "Korean",
+    "QWEN_MODEL_ID": "Qwen3-TTS-12Hz-1.7B-Base",
+    "NUM_SAMPLES": 1400,
+    "OUTPUT_SAMPLE_RATE": 22050,
+    "MAX_TEXT_CHARS": 150,
+    "MAX_DURATION_S": 10.0,
+    "PIPER_PRETRAINED_CHECKPOINT": "en/en_US/lessac/medium  (Korean 없음)",
+    "PIPER_MAX_EPOCHS": 4000,
+    "PIPER_BATCH_SIZE": 8,
+    "PIPER_PRECISION": 32
+  },
+  "warning": "한국어 프리트레인 체크포인트가 없어 영어 체크포인트로 교차언어 파인튜닝한다. 학습 후 반드시 verify_piper_clone.py 로 CER 를 측정할 것."
+}

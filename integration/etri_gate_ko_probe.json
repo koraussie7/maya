@@ -1,0 +1,213 @@
+{
+  "utterances": [
+    {
+      "kind": "cmd",
+      "text": "유튜브 열어줘",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0,
+        "verb": null
+      },
+      "ko": {
+        "is_command": true,
+        "verb": "열어",
+        "why": "동사 포함"
+      }
+    },
+    {
+      "kind": "cmd",
+      "text": "브라우저 열어",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0,
+        "verb": null
+      },
+      "ko": {
+        "is_command": true,
+        "verb": "열어",
+        "why": "동사 포함"
+      }
+    },
+    {
+      "kind": "cmd",
+      "text": "볼륨 30으로 줄여줘",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0,
+        "verb": null
+      },
+      "ko": {
+        "is_command": true,
+        "verb": "줄여",
+        "why": "동사 포함"
+      }
+    },
+    {
+      "kind": "cmd",
+      "text": "다음 곡 재생해줘",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0,
+        "verb": null
+      },
+      "ko": {
+        "is_command": true,
+        "verb": "재생",
+        "why": "동사 포함"
+      }
+    },
+    {
+      "kind": "cmd",
+      "text": "메모장 실행해줘",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0,
+        "verb": null
+      },
+      "ko": {
+        "is_command": true,
+        "verb": "실행",
+        "why": "동사 포함"
+      }
+    },
+    {
+      "kind": "cmd",
+      "text": "화면 캡처해줘",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0,
+        "verb": null
+      },
+      "ko": {
+        "is_command": true,
+        "verb": "캡처",
+        "why": "동사 포함"
+      }
+    },
+    {
+      "kind": "cmd",
+      "text": "검색해줘 강아지 사진",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0,
+        "verb": null
+      },
+      "ko": {
+        "is_command": true,
+        "verb": "검색",
+        "why": "동사 포함"
+      }
+    },
+    {
+      "kind": "cmd",
+      "text": "그만",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0,
+        "verb": null
+      },
+      "ko": {
+        "is_command": true,
+        "verb": "그만",
+        "why": "동사 포함"
+      }
+    },
+    {
+      "kind": "cmd",
+      "text": "확인",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0,
+        "verb": null
+      },
+      "ko": {
+        "is_command": true,
+        "verb": "확인",
+        "why": "동사 포함"
+      }
+    },
+    {
+      "kind": "chat",
+      "text": "응",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0,
+        "verb": null
+      },
+      "ko": {
+        "is_command": false,
+        "why": "빈칸/백채널"
+      }
+    },
+    {
+      "kind": "chat",
+      "text": "아 그래",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0,
+        "verb": null
+      },
+      "ko": {
+        "is_command": false,
+        "why": "빈칸/백채널"
+      }
+    },
+    {
+      "kind": "chat",
+      "text": "오늘 좀 피곤하네",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0,
+        "verb": null
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    },
+    {
+      "kind": "chat",
+      "text": "지금 몇 시야?",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0,
+        "verb": null
+      },
+      "ko": {
+        "is_command": false,
+        "why": "질문 어미"
+      }
+    },
+    {
+      "kind": "chat",
+      "text": "너 이름이 뭐야?",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0,
+        "verb": null
+      },
+      "ko": {
+        "is_command": false,
+        "why": "질문 어미"
+      }
+    },
+    {
+      "kind": "chat",
+      "text": "어 분위기 확 바뀌네",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0,
+        "verb": null
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    }
+  ],
+  "etri_wrong": 9,
+  "ko_wrong": 0,
+  "etri_source": "/tmp/etri-vc"
+}

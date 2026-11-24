@@ -1,0 +1,98 @@
+{
+  "base": "https://privseai.com/privseai/llm/v1",
+  "models": {
+    "tllm/gemini_2_0_flash": {
+      "rows": [
+        {
+          "turn": "오늘 서울 날씨 어때?",
+          "error": "HTTP 403",
+          "body": "{\"error\":{\"message\":\"[403]: The Old LLM is blocked by Vercel for this server egress IP. Configure a residential provider or global proxy for 'theoldllm' and retry.\",\"type\":\"permission_error\",\"code\":\"insufficient_quota\"}}"
+        },
+        {
+          "turn": "내일 아침 9시에 회의 있는 거 맞지?",
+          "error": "HTTP 403",
+          "body": "{\"error\":{\"message\":\"[403]: The Old LLM is blocked by Vercel for this server egress IP. Configure a residential provider or global proxy for 'theoldllm' and retry.\",\"type\":\"permission_error\",\"code\":\"insufficient_quota\"}}"
+        },
+        {
+          "turn": "배고픈데 뭐 먹을까?",
+          "error": "HTTP 403",
+          "body": "{\"error\":{\"message\":\"[403]: The Old LLM is blocked by Vercel for this server egress IP. Configure a residential provider or global proxy for 'theoldllm' and retry.\",\"type\":\"permission_error\",\"code\":\"insufficient_quota\"}}"
+        }
+      ],
+      "avg_ttft_s": null,
+      "avg_total_s": null,
+      "korean_ok": false
+    },
+    "tllm/gemini_2_5_pro": {
+      "rows": [
+        {
+          "turn": "오늘 서울 날씨 어때?",
+          "error": "HTTP 403",
+          "body": "{\"error\":{\"message\":\"[403]: The Old LLM is blocked by Vercel for this server egress IP. Configure a residential provider or global proxy for 'theoldllm' and retry.\",\"type\":\"permission_error\",\"code\":\"insufficient_quota\"}}"
+        },
+        {
+          "turn": "내일 아침 9시에 회의 있는 거 맞지?",
+          "error": "HTTP 403",
+          "body": "{\"error\":{\"message\":\"[403]: The Old LLM is blocked by Vercel for this server egress IP. Configure a residential provider or global proxy for 'theoldllm' and retry.\",\"type\":\"permission_error\",\"code\":\"insufficient_quota\"}}"
+        },
+        {
+          "turn": "배고픈데 뭐 먹을까?",
+          "error": "HTTP 403",
+          "body": "{\"error\":{\"message\":\"[403]: The Old LLM is blocked by Vercel for this server egress IP. Configure a residential provider or global proxy for 'theoldllm' and retry.\",\"type\":\"permission_error\",\"code\":\"insufficient_quota\"}}"
+        }
+      ],
+      "avg_ttft_s": null,
+      "avg_total_s": null,
+      "korean_ok": false
+    },
+    "cerebras/gemma-4-31b": {
+      "rows": [
+        {
+          "turn": "오늘 서울 날씨 어때?",
+          "error": "HTTP 404",
+          "body": "{\"error\":{\"message\":\"[cerebras/gemma-4-31b] [404]: Model gemma-4-31b is archived and unavailable for the organization. (reset after 2m)\"}}"
+        },
+        {
+          "turn": "내일 아침 9시에 회의 있는 거 맞지?",
+          "error": "HTTP 404",
+          "body": "{\"error\":{\"message\":\"[cerebras/gemma-4-31b] [404]: Model gemma-4-31b is archived and unavailable for the organization. (reset after 2m)\"}}"
+        },
+        {
+          "turn": "배고픈데 뭐 먹을까?",
+          "error": "HTTP 404",
+          "body": "{\"error\":{\"message\":\"[cerebras/gemma-4-31b] [404]: Model gemma-4-31b is archived and unavailable for the organization. (reset after 2m)\"}}"
+        }
+      ],
+      "avg_ttft_s": null,
+      "avg_total_s": null,
+      "korean_ok": false
+    },
+    "ddgw/gpt-5.4-mini": {
+      "rows": [
+        {
+          "turn": "오늘 서울 날씨 어때?",
+          "error": "HTTP 400",
+          "body": "{\"error\":{\"message\":\"[400]: DuckDuckGo AI Chat error: ERR_BAD_REQUEST\",\"type\":\"invalid_request_error\",\"code\":\"bad_request\"},\"upstream_details\":{\"error\":{\"message\":\"DuckDuckGo AI Chat error: ERR_BAD_REQUEST\"}}}"
+        },
+        {
+          "turn": "내일 아침 9시에 회의 있는 거 맞지?",
+          "error": "HTTP 400",
+          "body": "{\"error\":{\"message\":\"[400]: DuckDuckGo AI Chat error: ERR_BAD_REQUEST\",\"type\":\"invalid_request_error\",\"code\":\"bad_request\"},\"upstream_details\":{\"error\":{\"message\":\"DuckDuckGo AI Chat error: ERR_BAD_REQUEST\"}}}"
+        },
+        {
+          "turn": "배고픈데 뭐 먹을까?",
+          "error": "HTTP 400",
+          "body": "{\"error\":{\"message\":\"[400]: DuckDuckGo AI Chat error: ERR_BAD_REQUEST\",\"type\":\"invalid_request_error\",\"code\":\"bad_request\"},\"upstream_details\":{\"error\":{\"message\":\"DuckDuckGo AI Chat error: ERR_BAD_REQUEST\"}}}"
+        }
+      ],
+      "avg_ttft_s": null,
+      "avg_total_s": null,
+      "korean_ok": false
+    }
+  },
+  "turns": [
+    "오늘 서울 날씨 어때?",
+    "내일 아침 9시에 회의 있는 거 맞지?",
+    "배고픈데 뭐 먹을까?"
+  ]
+}

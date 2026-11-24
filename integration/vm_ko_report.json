@@ -1,0 +1,79 @@
+{
+  "memory_root": "/Users/brianyeon/CodeGPT/maya-2/.vm-ko-test",
+  "model": "gemma3:4b",
+  "concurrency": {
+    "async_facts": false,
+    "always_add": false
+  },
+  "facts_input": [
+    "나는 채식주의자이고 견과류에 알레르기가 있어요.",
+    "내 이름은 김민수이고 서울에 살아요.",
+    "회사는 판교에 있고, 아침 9시에 출근해요."
+  ],
+  "ingest": [
+    {
+      "text": "나는 채식주의자이고 견과류에 알레르기가 있어요.",
+      "seconds": 244.11,
+      "facts_count": 2,
+      "memory_ids": [
+        "9c21bd54-970b-4ccf-97d4-852c16f02b1e",
+        "64443058-a277-4648-a708-b122bae11171"
+      ],
+      "ok": true
+    },
+    {
+      "text": "내 이름은 김민수이고 서울에 살아요.",
+      "seconds": 600.76,
+      "facts_count": 2,
+      "memory_ids": [
+        "a23f55cd-6985-418a-95f0-b0fc9927e2d6",
+        "c3454f8f-8c6d-499e-9d3f-f16b4f272e76"
+      ],
+      "ok": true
+    },
+    {
+      "text": "회사는 판교에 있고, 아침 9시에 출근해요.",
+      "seconds": 821.62,
+      "error": "OperationalError: no such table: session_state",
+      "ok": false
+    }
+  ],
+  "search": [
+    {
+      "label": "식이 제한",
+      "query": "내 식이 제한이 뭐야?",
+      "error": "OperationalError: no such table: touched_refs",
+      "ok": false
+    },
+    {
+      "label": "거주지/이름",
+      "query": "내가 사는 곳이 어디라고 했지?",
+      "error": "OperationalError: no such table: touched_refs",
+      "ok": false
+    },
+    {
+      "label": "직장",
+      "query": "출근 시간이 몇 시였지?",
+      "error": "OperationalError: no such table: touched_refs",
+      "ok": false
+    }
+  ],
+  "raw_memory": [
+    "User is a vegetarian and has an allergy to nuts",
+    "User: 회사는 판교에 있고, 아침 9시에 출근해요.",
+    "User is a vegetarian and has an allergy to nuts",
+    "User is a vegetarian and has an allergy to nuts",
+    "User: 회사는 판교에 있고, 아침 9시에 출근해요.",
+    "User: 나는 채식주의자이고 견과류에 알레르기가 있어요.",
+    "User: 나는 채식주의자이고 견과류에 알레르기가 있어요.",
+    "User is a vegetarian and has an allergy to nuts"
+  ],
+  "db_integrity": {
+    "error": "OperationalError: no such table: session_state"
+  },
+  "original_kept": {
+    "나는 채식주의자이고 견과류에 알레르기가 있어요.": true,
+    "내 이름은 김민수이고 서울에 살아요.": false,
+    "회사는 판교에 있고, 아침 9시에 출근해요.": true
+  }
+}

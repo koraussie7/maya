@@ -1,0 +1,462 @@
+/* Maya — Mizu-inspired design tokens (Tailwind v4 호환 토큰) */
+:root {
+  --bg-0: #0b0d12;
+  --bg-1: #11141b;
+  --bg-2: #161a23;
+  --line: #1f2532;
+  --text-0: #f4f5f7;
+  --text-1: #c7cad3;
+  --text-2: #8b8f99;
+  --brand: #7c5cff;
+  --brand-soft: #b6a4ff;
+  --accent: #58e1ff;
+  --good: #5ee6a4;
+  --warn: #ffb86b;
+  --bad: #ff6b81;
+
+  --radius-s: 8px;
+  --radius-m: 14px;
+  --radius-l: 22px;
+
+  --shadow-1:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 12px 40px rgba(0, 0, 0, 0.4);
+  --shadow-orb:
+    0 0 60px rgba(124, 92, 255, 0.35), 0 0 120px rgba(88, 225, 255, 0.15);
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-0);
+  color: var(--text-0);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Inter", "Pretendard", "Noto Sans KR",
+    system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+.bg-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(
+      60% 50% at 30% 20%,
+      rgba(124, 92, 255, 0.18) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      50% 40% at 80% 70%,
+      rgba(88, 225, 255, 0.1) 0%,
+      transparent 70%
+    ),
+    var(--bg-0);
+}
+
+/* ---------- Topbar ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(12px);
+  background: rgba(11, 13, 18, 0.5);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--brand), var(--accent));
+  box-shadow: 0 0 12px var(--brand);
+}
+
+.brand-name {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.brand-sub {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-left: 6px;
+}
+
+.presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-1);
+}
+
+.presence-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-2);
+  box-shadow: 0 0 0 0 transparent;
+  transition:
+    background 200ms var(--ease),
+    box-shadow 200ms var(--ease);
+}
+
+.presence-dot[data-state="listening"] {
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+  animation: pulse 1.4s var(--ease) infinite;
+}
+.presence-dot[data-state="thinking"] {
+  background: var(--brand);
+  box-shadow: 0 0 12px var(--brand);
+  animation: pulse 1s var(--ease) infinite;
+}
+.presence-dot[data-state="speaking"] {
+  background: var(--good);
+  box-shadow: 0 0 12px var(--good);
+  animation: pulse 1.6s var(--ease) infinite;
+}
+.presence-dot[data-state="error"] {
+  background: var(--bad);
+  box-shadow: 0 0 12px var(--bad);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.4);
+    opacity: 0.6;
+  }
+}
+
+/* ---------- Stage ---------- */
+.stage {
+  display: grid;
+  grid-template-rows: minmax(280px, 1fr) auto auto;
+  gap: 20px;
+  padding: 24px 18px 100px;
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+/* ---------- Voice Orb (Mizu style) ---------- */
+.orb-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 20px 0 10px;
+  min-height: 320px;
+}
+
+.orb {
+  position: relative;
+  width: min(70vw, 320px);
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle at 50% 40%,
+      rgba(255, 255, 255, 0.06),
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 50% 50%,
+      var(--brand) 0%,
+      #4c2bd1 60%,
+      #1f1140 100%
+    );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  outline: none;
+  box-shadow: var(--shadow-orb);
+  transition: transform 400ms var(--ease);
+}
+
+.orb:focus-visible {
+  outline: 2px solid var(--brand-soft);
+  outline-offset: 6px;
+}
+
+.orb[data-state="listening"] {
+  transform: scale(1.04);
+}
+.orb[data-state="thinking"] {
+  animation: orb-breathe 2.2s var(--ease) infinite;
+}
+.orb[data-state="speaking"] {
+  animation: orb-breathe 1.4s var(--ease) infinite;
+}
+.orb[data-state="error"] {
+  filter: hue-rotate(-30deg) saturate(0.8);
+}
+
+@keyframes orb-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+.orb-core {
+  position: absolute;
+  width: 38%;
+  height: 38%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(255, 255, 255, 0.85),
+    rgba(255, 255, 255, 0.1) 60%,
+    transparent 70%
+  );
+  filter: blur(0.3px);
+}
+
+.orb-ring {
+  position: absolute;
+  inset: -4%;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.orb-ring.r2 {
+  inset: -10%;
+  border-color: rgba(255, 255, 255, 0.05);
+}
+.orb-ring.r3 {
+  inset: -18%;
+  border-color: rgba(255, 255, 255, 0.03);
+}
+
+.orb-wave {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.85;
+}
+
+.mic-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-0);
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    background 200ms var(--ease),
+    transform 200ms var(--ease);
+}
+
+.mic-btn:hover {
+  background: var(--bg-2);
+  transform: translateY(-1px);
+}
+.mic-btn[aria-pressed="true"] {
+  background: linear-gradient(135deg, var(--brand), #5b3df0);
+  border-color: transparent;
+  color: white;
+}
+
+/* ---------- Chat ---------- */
+.chat {
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  padding: 18px;
+  box-shadow: var(--shadow-1);
+  min-height: 180px;
+}
+
+.chat-empty h1 {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+.chat-empty p {
+  margin: 0 0 14px;
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+.suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  padding: 8px 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-1);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 160ms var(--ease);
+}
+.chip:hover {
+  background: #1d2330;
+  color: var(--text-0);
+}
+
+.chat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.chat-item .role {
+  font-size: 11px;
+  color: var(--text-2);
+  margin-top: 4px;
+  min-width: 40px;
+}
+.chat-item.user .bubble {
+  background: linear-gradient(
+    135deg,
+    rgba(124, 92, 255, 0.18),
+    rgba(124, 92, 255, 0.06)
+  );
+  border-color: rgba(124, 92, 255, 0.3);
+}
+.chat-item.assistant .bubble {
+  background: var(--bg-2);
+}
+.chat-item .bubble {
+  padding: 10px 12px;
+  border-radius: var(--radius-m);
+  border: 1px solid var(--line);
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 100%;
+  word-break: break-word;
+}
+.chat-item .bubble.thinking {
+  font-style: italic;
+  color: var(--text-2);
+}
+.chat-item .bubble .cursor {
+  display: inline-block;
+  width: 6px;
+  height: 14px;
+  background: var(--brand-soft);
+  margin-left: 2px;
+  vertical-align: -2px;
+  animation: blink 1s steps(2) infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ---------- Composer ---------- */
+.composer {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+}
+
+.composer input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-0);
+  font-size: 14px;
+}
+
+.composer input::placeholder {
+  color: var(--text-2);
+}
+
+.composer button {
+  padding: 8px 14px;
+  background: var(--brand);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+.composer button:hover {
+  background: #6a4dff;
+}
+
+/* ---------- Footer ---------- */
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  padding: 18px;
+  color: var(--text-2);
+  font-size: 12px;
+  border-top: 1px solid var(--line);
+}
+.footer .mono {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 540px) {
+  .brand-sub {
+    display: none;
+  }
+  .stage {
+    padding: 16px 12px 80px;
+  }
+  .mic-label {
+    display: none;
+  }
+}

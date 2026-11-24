@@ -1,0 +1,72 @@
+{
+  "mode": "short",
+  "base_url": "http://127.0.0.1:11434/v1",
+  "prompt": {
+    "system_chars": 35,
+    "user_chars": 424
+  },
+  "facts_input": [
+    "나는 채식주의자이고 견과류에 알레르기가 있어요.",
+    "내 이름은 김민수이고 서울에 살아요.",
+    "회사는 판교에 있고, 아침 9시에 출근해요."
+  ],
+  "runs": [
+    {
+      "seconds": 177.4,
+      "raw_chars": 0,
+      "finish": "length",
+      "facts": [],
+      "raw_tail": "",
+      "model": "qwen3:1.7b",
+      "korean_facts": 0
+    },
+    {
+      "seconds": 188.0,
+      "raw_chars": 380,
+      "finish": "stop",
+      "facts": [
+        {
+          "text": "나는 채식주의자이고 견과류에 알레르기가 있어요.",
+          "attribute": "diet: 채식주의자, allergy: 견과류에 알레르기"
+        },
+        {
+          "text": "내 이름은 김민수이고 서울에 살아요.",
+          "attribute": "name: 김민수, residence: 서울"
+        },
+        {
+          "text": "회사는 판교에 있고, 아침 9시에 출근해요.",
+          "attribute": "workplace: 판교, commute time: 아침 9시"
+        }
+      ],
+      "model": "gemma3:4b",
+      "korean_facts": 3
+    },
+    {
+      "error": "APITimeoutError: Request timed out.",
+      "seconds": 300.1,
+      "model": "gemma4:12b",
+      "korean_facts": 0
+    },
+    {
+      "seconds": 144.1,
+      "raw_chars": 393,
+      "finish": "stop",
+      "facts": [
+        {
+          "text": "나는 채식주의자이고 견과류에 알레르기가 있어요.",
+          "attribute": ""
+        },
+        {
+          "text": "내 이름은 김민수이고 서울에 살아요.",
+          "attribute": ""
+        },
+        {
+          "text": "회사는 판교에 있고, 아침 9시에 출근해요.",
+          "attribute": ""
+        }
+      ],
+      "model": "qwen2.5-coder:1.5b",
+      "korean_facts": 3
+    }
+  ]
+}

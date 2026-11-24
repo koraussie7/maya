@@ -1,0 +1,67 @@
+# ─── Python ───────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ─── Virtualenv (hundreds of MB) ──────
+.venv*/
+venv/
+env/
+
+# ─── Node / pnpm / SvelteKit (huge) ───
+node_modules/
+.pnpm-store/
+
+# ─── SvelteKit generated / built ──────
+.svelte-kit/
+build/
+.output/
+
+# ─── Vite / build caches ──────────────
+.vite/
+dist/
+.cache/
+.turbo/
+
+# ─── Tool caches / state ──────────────
+.agent-cache/
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# ─── HTTP Forge / Kilo tool state ─────
+.http-forge/
+.kilo/
+
+# ─── Local test sandboxes ─────────────
+.vm-ko-test/
+.vm-ko-test.bak-*/
+.vm-ko-test.prev-*/
+.vm-ko-raw/
+
+# ─── Local DB / runtime ───────────────
+database.db
+*.sqlite
+*.sqlite3
+
+# ─── Transcripts (raw audio) ──────────
+maya/transcripts/
+
+# ─── Env / secrets (NEVER push) ───────
+.env
+.env.local
+*.env.local
+.env.*.local
+
+# ─── Backup files from editing ────────
+*.bak-*
+*.prev-*
+*.tmp
+*.bak
+
+# ─── Output reports / large ───────────
+*.json.bak

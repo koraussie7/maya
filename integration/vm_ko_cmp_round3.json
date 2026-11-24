@@ -1,0 +1,58 @@
+{
+  "prompt": {
+    "chars": 345,
+    "mode": "short"
+  },
+  "facts_input": [
+    "나는 채식주의자이고 견과류에 알레르기가 있어요.",
+    "내 이름은 김민수이고 서울에 살아요.",
+    "회사는 판교에 있고, 아침 9시에 출근해요."
+  ],
+  "runs": [
+    {
+      "seconds": 21.5,
+      "raw": "```json\n{\n  \"memory\": [\n    {\n      \"id\": \"0\",\n      \"text\": \"나는 채식주의자이고 견과류에 알레르기가 있어요.\",\n      \"attributed_to\": \"user\",\n      \"attribute\": \"\"\n    }\n  ]\n}\n```",
+      "finish": "stop",
+      "tokens": {
+        "prompt": 221,
+        "completion": 65
+      },
+      "fenced": true,
+      "parsed": [
+        {
+          "text": "나는 채식주의자이고 견과류에 알레르기가 있어요.",
+          "attribute": ""
+        }
+      ],
+      "json_ok": true,
+      "model": "qwen2.5-coder:1.5b",
+      "score": {
+        "n_facts": 1,
+        "korean_ratio": 1.0,
+        "has_hangul": true,
+        "foreign_cjk": 0,
+        "coverage_per_sentence": [
+          3,
+          0,
+          0
+        ],
+        "coverage": "3/9",
+        "texts": [
+          "나는 채식주의자이고 견과류에 알레르기가 있어요."
+        ]
+      }
+    },
+    {
+      "error": "APITimeoutError: Request timed out.",
+      "seconds": 60.0,
+      "model": "gemma3:4b",
+      "score": null
+    },
+    {
+      "error": "APITimeoutError: Request timed out.",
+      "seconds": 60.0,
+      "model": "hermes3:8b",
+      "score": null
+    }
+  ]
+}

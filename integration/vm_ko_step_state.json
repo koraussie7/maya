@@ -1,0 +1,41 @@
+{
+  "ingest": [
+    {
+      "index": 1,
+      "text": "내 이름은 김민수이고 서울에 살아요.",
+      "at": "11:44:00",
+      "seconds": 323.18,
+      "facts_count": 1,
+      "memory_ids": [
+        "a9258e5b-ccd9-41ad-bde8-0c13ef3fbcd1"
+      ],
+      "ok": true
+    }
+  ],
+  "search": [
+    {
+      "label": "식이 제한",
+      "query": "내 식이 제한이 뭐야?",
+      "expect_contains": "채식",
+      "ms": 18455,
+      "leftbrain": "['User: 나는 채식주의자이고 견과류에 알레르기가 있어요.', 'User is a vegetarian and has an allergy to nuts']",
+      "top1_ok": true
+    },
+    {
+      "label": "거주지/이름",
+      "query": "내가 사는 곳이 어디라고 했지?",
+      "expect_contains": "서울",
+      "ms": 71,
+      "leftbrain": "['User: 나는 채식주의자이고 견과류에 알레르기가 있어요.', 'User is a vegetarian and has an allergy to nuts']",
+      "top1_ok": false
+    },
+    {
+      "label": "직장",
+      "query": "출근 시간이 몇 시였지?",
+      "expect_contains": "판교",
+      "ms": 64,
+      "leftbrain": "['User: 나는 채식주의자이고 견과류에 알레르기가 있어요.', 'User is a vegetarian and has an allergy to nuts']",
+      "top1_ok": false
+    }
+  ]
+}

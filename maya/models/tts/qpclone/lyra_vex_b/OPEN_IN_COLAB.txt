@@ -1,0 +1,10 @@
+1) https://colab.research.google.com/  → 파일 > 노트북 업로드
+   → Qwen3_TTS_lyra_vex_b_ready.ipynb
+2) 런타임 > 런타임 유형 변경 > T4 GPU
+3) 왼쪽 🔑 아이콘 > HF_TOKEN 시크릿 추가 (huggingface.co/settings/tokens)
+4) 왼쪽 📁 에 ref.wav 업로드 (준비된 파일: clip_ref_lyra_vex_b.wav)
+5) 런타임 > 모두 실행 (약 6시간, PIPER_RESUME=True 로 중단 후 재개 가능)
+6) Drive/Piper_Qwen_Projects/lyra_vex_b/ 에서 model.onnx 다운로드
+
+설정: PROJECT_NAME=lyra_vex_b, LANGUAGE=Korean
+REF_TEXT=

@@ -1,0 +1,25 @@
+import adapter from "@sveltejs/adapter-static";
+import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
+
+/** @type {import('@sveltejs/kit').Config} */
+const config = {
+  preprocess: vitePreprocess(),
+  kit: {
+    paths: { base: "/maya" }, // privseai.com/maya
+    adapter: adapter({
+      pages: "build",
+      assets: "build",
+      fallback: "index.html",
+      precompress: false,
+      strict: false,
+    }),
+    // "*" 프리렌더는 페이지 안의 링크(/memory, /settings)까지 따라가서 404로 빌드를 죽인다.
+    // 루트만 정적 생성하고 나머지는 fallback(index.html)에서 SPA 라우팅한다.
+    prerender: {
+      entries: ["/"],
+      handleHttpError: "warn",
+    },
+  },
+};
+
+export default config;

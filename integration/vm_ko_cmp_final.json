@@ -1,0 +1,81 @@
+{
+  "prompt": {
+    "chars": 345,
+    "mode": "short"
+  },
+  "facts_input": [
+    "나는 채식주의자이고 견과류에 알레르기가 있어요.",
+    "내 이름은 김민수이고 서울에 살아요.",
+    "회사는 판교에 있고, 아침 9시에 출근해요."
+  ],
+  "runs": [
+    {
+      "seconds": 190.5,
+      "raw": "We are given a user's speech and need to extract long-lasting personal facts.\n The rules:\n   - memory[].text must be in Korean (same as input).\n   - Each fact corresponds to one original sentence; no inference allowed.\n   - Preserve proper nouns, numbers, times, places exactly as written.\n\n Steps:\n 1. Identify each independent statement that provides a personal fact.\n    - Personal facts typically include identity, location, age (if mentioned), occupation details, etc.\n\n 2. From the provided speech:\n    Sentence 1: \"나는 채식주의자이고 견과류에 알레르기가 있어요.\"\n        -> This gives two pieces of information? But note: we are to take each sentence as one fact entry if it contains a personal fact.\n        However, the rule says: \"각 사실은 원문 문장 하나에 대응시킨다\" meaning one fact per original sentence.\n        But also note: \"존재하지 않는 추론 문장 금지\" (no inference sentences). So we cannot combine multiple facts from one sentence arbitrarily?\n        Actually, each sentence might contain multiple facts but we output them as separate entries only if they are distinct and meet criteria.\n\n    However, looking at the example format, it expects an array of objects with id, text, attributed_to, attribute.\n    The problem says: \"오래 남을 개인 사실\" (long-lasting personal facts). We should extract clear personal identifiers.\n\n 3. Let's break down each sentence:\n\n    Sentence 1: \n        - \"나는 ...\": identity part -> name? But note the next sentence already gives the name explicitly.\n          Since the second sentence says \"내 이름은 김민수이고\", we can consider that as the explicit fact about name.\n        - Also, it mentions dietary preference (채식주의자) and allergy (견과류 알레르기). These are personal preferences/health conditions which might be considered long-lasting facts? \n          But note: allergies are health conditions that may change, so they might not be as enduringly personal in the same way as identity or location.\n\n    According to common interpretation of such tasks, we focus on immutable personal attributes like name, address, age, occupation details (like workplace and hours).\n\n 4. Considering the rules:\n    - We must attribute each fact to \"user\".\n    - The attribute field is empty unless specified? The example output doesn't show an attribute field in the provided JSON structure. Let me check:\n\n        Output format: {\"memory\": [{\"id\": \"0\", \"text\": \"<사실>\", \"attributed_to\": \"user\", \"attribute\": \"\"}]}\n\n      There is no 'attribute' key in the example output? Actually, the example includes \"attributed_to\" and then an empty string for attribute. \n      So we don't need to add extra attributes beyond what's required.\n\n 5. Proposed extraction:\n\n    Sentence 1: \n        Extract only the explicit personal fact that is long-lasting? The name isn't stated here, so maybe skip it because it will be in sentence 2.\n        The allergy and diet are more about habits than core identity/location. They might not qualify as \"오래 남을\" (long-lasting).\n\n    Sentence 2: \n        \"내 이름은 김민수이고 서울에 살아요.\"\n            -> Name: 김민수 (proper noun, must keep as is) and location: 서울 (city). Both are long-lasting.\n\n    Sentence 3:\n        \"회사는 판교에 있고, 아침 9시에 출근해요.\"\n            -> Workplace: 판교 (company name), address/location: 서울 (but note: already covered in sentence2? However, company location is specific to them) and time of work: 9시.\n\n    However, note that the workplace is mentioned as \"판교\", which is a specific company location. And the time is fixed.\n\n 6. Decision on facts per sentence:\n\n    We'll extract one fact per sentence if it contains at least one long-lasting personal detail. Otherwise, skip? But rule says each fact corresponds to one original sentence. So even if a sentence has multiple, we can split into separate entries if they are distinct and meet criteria.\n\n    But let's see:\n\n      Sentence 1: \n          Fact 1: Identity (name) is not stated -> skip? Or include the allergy/diet? I think stick to core personal facts.\n\n      According to typical extractive named entity recognition for such tasks, we take:\n        - Name: from sentence2\n        - Location: Seoul from sentence2 and also company address in",
+      "finish": "length",
+      "reasoning_chars": 0,
+      "tokens": {
+        "prompt": 184,
+        "completion": 1024
+      },
+      "fenced": true,
+      "parsed": [
+        {
+          "text": "<사실>",
+          "attribute": ""
+        }
+      ],
+      "json_ok": true,
+      "model": "exaone4:latest",
+      "score": {
+        "n_facts": 1,
+        "korean_ratio": 1.0,
+        "has_hangul": true,
+        "foreign_cjk": 0,
+        "coverage_per_sentence": [
+          0,
+          0,
+          0
+        ],
+        "coverage": "0/9",
+        "texts": [
+          "<사실>"
+        ]
+      }
+    },
+    {
+      "seconds": 18.5,
+      "raw": "```json\n{\n  \"memory\": [\n    {\n      \"id\": \"0\",\n      \"text\": \"나는 채식주의자이고 견과류에 알레르기가 있어요.\",\n      \"attributed_to\": \"user\",\n      \"attribute\": \"\"\n    }\n  ]\n}\n```",
+      "finish": "stop",
+      "reasoning_chars": 0,
+      "tokens": {
+        "prompt": 221,
+        "completion": 65
+      },
+      "fenced": true,
+      "parsed": [
+        {
+          "text": "나는 채식주의자이고 견과류에 알레르기가 있어요.",
+          "attribute": ""
+        }
+      ],
+      "json_ok": true,
+      "model": "qwen2.5-coder:1.5b",
+      "score": {
+        "n_facts": 1,
+        "korean_ratio": 1.0,
+        "has_hangul": true,
+        "foreign_cjk": 0,
+        "coverage_per_sentence": [
+          3,
+          0,
+          0
+        ],
+        "coverage": "3/9",
+        "texts": [
+          "나는 채식주의자이고 견과류에 알레르기가 있어요."
+        ]
+      }
+    }
+  ]
+}

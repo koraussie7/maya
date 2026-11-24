@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <link
+      rel="icon"
+      href="%sveltekit.assets%/favicon.svg"
+      type="image/svg+xml"
+    />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0b0d12" />
+    <meta
+      name="description"
+      content="Maya — 음성 비서. 한국어 STT · OpenRouter LLM · VoxCPM 클론 음성."
+    />
+    <title>Maya · 음성 비서</title>
+    <script>
+      // privseai.com/maya 정적 호스팅 시 backend 주입 (선택)
+      window.__MAYA_WS_URL__ = window.__MAYA_WS_URL__ || null;
+      window.__MAYA_HTTP_BASE__ = window.__MAYA_HTTP_BASE__ || null;
+    </script>
+    %sveltekit.head%
+  </head>
+  <body data-sveltekit-preload-data="hover" class="bg-[--bg-0] text-[--fg-0]">
+    <div style="display: contents">%sveltekit.body%</div>
+  </body>
+</html>

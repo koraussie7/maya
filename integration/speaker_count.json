@@ -1,0 +1,98 @@
+{
+  "segments": 192,
+  "k": {
+    "2": {
+      "silhouette": 0.4237,
+      "sizes": [
+        79,
+        113
+      ],
+      "tiny_clusters": 0,
+      "clusters": [
+        {
+          "size": 79,
+          "seconds": 228,
+          "f0_median": 124,
+          "rep_start_s": 976.1
+        },
+        {
+          "size": 113,
+          "seconds": 542,
+          "f0_median": 192,
+          "rep_start_s": 66.8
+        }
+      ]
+    },
+    "3": {
+      "silhouette": 0.3799,
+      "sizes": [
+        109,
+        64,
+        19
+      ],
+      "tiny_clusters": 0,
+      "clusters": [
+        {
+          "size": 109,
+          "seconds": 533,
+          "f0_median": 192,
+          "rep_start_s": 66.8
+        },
+        {
+          "size": 64,
+          "seconds": 195,
+          "f0_median": 125,
+          "rep_start_s": 976.1
+        },
+        {
+          "size": 19,
+          "seconds": 43,
+          "f0_median": 113,
+          "rep_start_s": 476.0
+        }
+      ]
+    },
+    "4": {
+      "silhouette": 0.2035,
+      "sizes": [
+        19,
+        58,
+        64,
+        51
+      ],
+      "tiny_clusters": 0,
+      "clusters": [
+        {
+          "size": 19,
+          "seconds": 43,
+          "f0_median": 113,
+          "rep_start_s": 476.0
+        },
+        {
+          "size": 58,
+          "seconds": 261,
+          "f0_median": 196,
+          "rep_start_s": 66.8
+        },
+        {
+          "size": 64,
+          "seconds": 195,
+          "f0_median": 125,
+          "rep_start_s": 976.1
+        },
+        {
+          "size": 51,
+          "seconds": 272,
+          "f0_median": 188,
+          "rep_start_s": 490.1
+        }
+      ]
+    }
+  },
+  "f0_distribution": {
+    "p10": 117,
+    "p50": 163,
+    "p90": 234
+  },
+  "suggested_k": 2
+}
