@@ -19,7 +19,11 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REMOTE_URL="https://github.com/koraussie7/maya.git"
-BRANCH="main"
+# Local branch is whatever HEAD currently points to. We do NOT hardcode "main"
+# because a fresh init on older git defaulted to "master". Pushing to whatever
+# the remote actually has on its default branch is the safe move; we detect it
+# below before pushing.
+BRANCH=""
 
 # ── arg parsing ───────────────────────────────────────────
 DO_PUSH="no"
@@ -46,9 +50,20 @@ git config user.name   "brianyeon"
 if ! git rev-parse --git-dir >/dev/null 2>&1; then
     echo "==> git init"
     git init -q
-    # 'main' is the new default on github.com empty repos
-    git symbolic-ref HEAD "refs/heads/$BRANCH"
 fi
+
+# Detect the local branch. If there's only one branch and HEAD is detached,
+# use the configured init.defaultBranch, otherwise fall back to the existing
+# branch.
+BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
+if [[ -z "$BRANCH" ]]; then
+    BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+fi
+if [[ "$BRANCH" == "HEAD" || -z "$BRANCH" ]]; then
+    echo "ERROR: cannot determine local branch. Run 'git checkout -b main' first." >&2
+    exit 3
+fi
+echo "==> local branch: $BRANCH"
 
 # ── remote handling ──────────────────────────────────────
 if ! git remote get-url origin >/dev/null 2>&1; then
@@ -129,8 +144,9 @@ COMMIT_MSG="push: full Maya workspace snapshot (today)
 git commit -q -m "$COMMIT_MSG"
 
 # ── push ──────────────────────────────────────────────────
-# Push to main. If remote's default branch is empty (no commits),
-# use -u so this local branch becomes the upstream.
+# Push the current branch (whatever its name is — local is "master" here).
+# -u sets upstream on first push. Force-push is intentionally NOT used;
+# if the remote already has a different history, the push will fail safely.
 echo "==> git push -u origin $BRANCH"
 if git push -u origin "$BRANCH" 2>&1; then
     echo
@@ -139,8 +155,8 @@ if git push -u origin "$BRANCH" 2>&1; then
 else
     echo
     echo "==> ❌ push failed. Common causes:"
-    echo "      • remote is empty but has protected branch rules → push works"
-    echo "      • 403: not authenticated; the remote is at https://github.com/$EXPECTED_OWNER/maya"
-    echo "      • need a PAT or 'gh auth login' for the push to succeed"
+    echo "      • 403: not authenticated. Need PAT or 'gh auth login' for push."
+    echo "      • remote rejected non-fast-forward: rebase or merge first."
+    echo "      • remote is empty AND has protected branch rules."
     exit 4
 fi
