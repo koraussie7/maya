@@ -289,6 +289,52 @@ if os.environ.get("MAYA_VAD_ENGINE") == "firered":
 
 > **참고**: 8s 발화(첫 컷) PoC 의 6.87ms 수치는 in-proc stub 모드 측정값이었음. 실모델 + IPC 측정 결과 **p95 ≈ 42ms** 가 정답. 6.2 폐기 조건의 "< 15ms" 는 stub 측정 가정 기준이었으므로, 실측치 기준 한계선 재검토 필요 (아래 §6.2 갱신 참조).
 
+### 5.4 STT 호출 횟수 A/B 벤치 (긴 클립)
+
+`integration/bench_stt_vad_split.py` 로 multi_a/multi_b 클립을 baseline(8s 한번) / RMS VAD / FireRedVAD 3모드로 동일 WAV 비교. STT 호출 횟수·총 `stt_ms`·CER(보정값) 을 수집해 "긴 발화에서 분할 정책이 STT 비용에 미치는 영향" 을 정량화한다.
+
+#### 5.4.1 측정 조건
+
+| 항목              | 값                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| 입력              | `/tmp/multi_a.wav` (10.13s, 5문장), `/tmp/multi_b.wav` (8.20s, 3문장)              |
+| 합성              | `say -v Yuna` 8문장 → 5+3 클립 분할, 16kHz mono s16le, 300ms 무음 삽입              |
+| STT               | faster-whisper tiny (CLI-voicemem venv), beam_size=1                                  |
+| RMS 임계값        | 250 (적응형 노이즈 바닥, NAMO 54/54 검증값)                                         |
+| FireRedVAD 워커   | `fireredvad` Python 패키지 부재 → CLI 환경에서는 RMS 와 동일 코드 경로 사용       |
+| STT 모드          | baseline = 8초 한 번 / RMS·FireRedVAD = VAD 컷 발생 시점마다 STT 호출              |
+| 측정 도구         | `integration/bench_stt_vad_split.py` (--src WAV, --text, --no-firered)              |
+
+#### 5.4.2 결과 요약 (2026-11-25)
+
+| 클립       | 모드      | calls | stt_ms | 비고                                                                       |
+| ---------- | --------- | ----- | ------ | -------------------------------------------------------------------------- |
+| multi_a    | baseline  | 1     | 606ms  | 8초 한번 컷, 3문장만 인식(나머지 무음 구간은 가드 종결)                  |
+| multi_a    | RMS       | 2     | 883ms  | 8초 + 2.13초 컷 (300ms 무음 후 후미 컷)                                   |
+| multi_a    | FireRedVAD| (2)   | (≈883ms) | 동일 코드 경로 추정 (RMS 와 같은 `max_turn_ms=8000` 정책)                |
+| multi_b    | baseline  | 1     | 510ms  | 8초 한번, 3문장 인식 (총 8.20s 중 8초)                                    |
+| multi_b    | RMS       | 2     | 779ms  | 8초 + 0.20초 후미 컷 (무음 0.3s → 컷)                                      |
+| multi3 (참고) | baseline  | 1     | 553ms  | 11.04s 단일 클립 (§5.3 PoC)                                               |
+| multi3 (참고) | RMS       | 2     | 844ms  | 11.04s 단일 클립                                                            |
+| multi3 (참고) | FireRedVAD| 2     | (실측) | 11.04s 단일 클립, IPC 워커 실측 (2026-11-25 firstcut PoC)                |
+
+**관찰**
+
+- 8초 안팎의 단일 발화 클립에서는 baseline(1콜) 대비 RMS·FireRedVAD 모두 **+1 콜** (총 2콜). 300ms 무음 구간이 VAD 컷을 유발하기 때문.
+- 8초 초과 클립(multi_a 10.13s)에서도 RMS 의 1차 컷이 `max_turn_ms=8000` 가드 종결이므로 baseline(8초 컷)과 호출 횟수가 동일.
+- **분할 정책이 호출 횟수를 늘리는 방향**으로 작동 → STT 절감 효과는 1분 이상 다중 발화 클립에서 측정 필요.
+- CER 은 tiny 모델 + 합성 음성 특성상 100% 이상으로 수렴 (오탈자·인식 누락). 절대값보다 **모드 간 상대 비교** 가 유효.
+
+#### 5.4.3 다음 단계 (정책 변경 후보)
+
+| 후보                                    | 기대 효과                                  | 비용                                |
+| --------------------------------------- | ------------------------------------------ | ----------------------------------- |
+| `max_turn_ms` → 12,000ms (1.5×)         | 8초 초과 단일 발화에서 +1 콜 → +1 콜 유지 | 가드 지연 +4초 (사용자 응답성 회귀) |
+| FireRedVAD end-of-turn 미사용, AED 사용 | "음성 종료" + "음성 시작" 동시 검출        | IPC 호출 +1/세션                   |
+| baseline 4초 1차 컷 + VAD 2차 컷       | 8초 단일 발화에서 2콜 → 1콜                | 4초 시점에서 강제 STT (조기 응답)  |
+
+`max_turn_ms` 정책은 운영 데이터(1분 이상 실제 세션) 재측정 후 결정.
+
 ---
 
 ## 6. 폐기 조건 (PoC 결과가 약할 때)
@@ -320,7 +366,8 @@ if os.environ.get("MAYA_VAD_ENGINE") == "firered":
 - `_load_firered()` 검증: `vad_engine='firered'`, `firered_threshold=0.5`, `firered_fallback=True` 정상 적용, `_vad` 가 `FireRedVadClient` 인스턴스
 - HF FireRedVAD 블롭 부재 상황에서도 RMS 폴백 정상 (회귀 위험 없음 확인)
 - **실모델 + IPC p95 재측정** (`firered_vad_client.DetectorWrapper` 200 콜): p50=32.6ms, p95=41.7ms, p99=53.1ms, max=153.9ms(콜드콜), mean=34.2ms, stddev=9.3ms — stub 모드 6.87ms 대비 ~6× 느림. NCNN 네이티브 추론 시 회귀 가능성 있음.
-- **STT 호출 횟수 벤치** (`integration/bench_stt_vad_split.py`, multi3.wav 11.04s): baseline=1콜, RMS=2콜, FireRedVAD=2콜. 단일 발화 300ms 무음 구간 1개 포함 시 양쪽 모두 1번 추가 분할. "STT 호출 절감 50%+" 목표는 **다중 발화 1분 이상 클립**에서 재검증 필요 (다음 단계).
+- **STT 호출 횟수 벤치** (`integration/bench_stt_vad_split.py`, multi3.wav 11.04s): baseline=1콜, RMS=2콜, FireRedVAD=2콜. 단일 발화 300ms 무음 구간 1개 포함 시 양쪽 모두 1번 추가 분할. "STT 호출 절감 50%+" 목표는 **다중 발화 1분 이상 클립**에서 재검증 필요.
+- **§5.4 확장 벤치** (multi_a.wav 10.13s, multi_b.wav 8.20s): baseline=1콜, RMS=2콜, FireRedVAD=(2)콜. 8~11초 단일 발화 클립에서는 **VAD 분할이 호출 횟수를 늘리는 방향**으로 작동. 1분 이상 다중 발화 클립 재측정 필요 (§5.4.3).
 
 ---
 

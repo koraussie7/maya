@@ -138,6 +138,14 @@ class TurnConfig:
     detect_min_bytes: int = int(BYTES_PER_SEC * 0.4)
     detector_threshold: float = 0.9
 
+    # ── VAD 1차 컷 ─────────────────────────────────────────
+    # rms(기본) | firered — firered 는 별도 워커 프로세스(torch/iomp5 충돌 회피).
+    # firered 일 때도 NAMO 판정은 그대로 유지한다(54문장 회귀 보존).
+    vad_engine: str = "rms"
+    firered_threshold: float = 0.5
+    # 워커 응답 없음/모델 없음 → 로그 1회 남기고 rms 로 폴백
+    firered_fallback: bool = True
+
 
 @dataclass
 class TurnResult:
@@ -179,6 +187,31 @@ class TurnEngine:
         self._probe_text = ""
         self._last_detect_at = 0.0
 
+        # ── VAD 1차 컷 (firered) ──
+        self._vad = None
+        # 워커가 죽은 뒤 매 청크마다 재접속을 시도하면 청크 지연이 튄다
+        # → 한 번 실패하면 이 엔진 인스턴스는 RMS 로 남는다(firered_fallback=False 면 사용 불가).
+        self._vad_failed = False
+        if self.config.vad_engine == "firered":
+            self._vad = self._load_firered()
+
+    def _load_firered(self):
+        """FireRedVAD 워커를 띄운다. 실패하면 None → RMS 경로로 폴백."""
+        try:
+            try:
+                from firered_vad_client import FireRedVadClient  # type: ignore
+            except ImportError:
+                from integration.firered_vad_client import FireRedVadClient  # type: ignore
+            client = FireRedVadClient(threshold=self.config.firered_threshold)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("FireRedVAD 로드 실패 → RMS 판정 유지: %r", exc)
+            return None
+        if not client.available:
+            log.warning("FireRedVAD 워커 사용 불가 → RMS 판정 유지: %s", client.info)
+            return None
+        log.info("FireRedVAD 워커 연결: %s", client.info)
+        return client
+
     # -- 상태 ---------------------------------------------------------
     def reset(self) -> None:
         self._buf.clear()
@@ -190,6 +223,14 @@ class TurnEngine:
         self._probing = False
         self._probe_text = ""
         self._last_detect_at = 0.0
+        if self._vad is not None:
+            self._vad.reset()
+
+    def close(self) -> None:
+        """워커 프로세스 정리(테스트/서버 종료 시)."""
+        if self._vad is not None:
+            self._vad.close()
+            self._vad = None
 
     def begin_turn(self) -> None:
         self.reset()
@@ -216,7 +257,24 @@ class TurnEngine:
         samples = struct.unpack(f"<{len(pcm)//2}h", pcm[: len(pcm) // 2 * 2]) if pcm else ()
         rms = int((sum(v * v for v in samples) / len(samples)) ** 0.5) if samples else 0
 
-        if rms >= self.config.rms_threshold:
+        # 1차 컷: firered 워커가 있으면 그 판정을 쓰고, 없으면 RMS 를 쓴다.
+        vad_end = False
+        is_speech: Optional[bool] = None
+        if self._vad is not None:
+            vr = self._vad.push(pcm)
+            if vr is None:
+                # 워커 사망/타임아웃 → RMS 로 계속(라이브 보호). 재접속은 하지 않는다.
+                log.warning("FireRedVAD 응답 없음 → RMS 판정으로 폴백")
+                self._vad.close()
+                self._vad = None
+                self._vad_failed = True
+            else:
+                is_speech = bool(vr.get("speech"))
+                vad_end = bool(vr.get("end"))
+        if is_speech is None:
+            is_speech = rms >= self.config.rms_threshold
+
+        if is_speech:
             self._speech_run += 1
             self._last_speech = now
             # NAMO 가 "아직 말 중" 이라고 했는데 다시 말하기 시작 → 계속 수집
@@ -225,7 +283,8 @@ class TurnEngine:
                 self._probe_text = ""
             if not self._speech_started and self._speech_run >= self.config.speech_frames_to_start:
                 self._speech_started = True
-                log.info("turn: 발화 시작 (rms=%d)", rms)
+                log.info("turn: 발화 시작 (rms=%d, vad=%s)", rms,
+                         "firered" if self._vad is not None else "rms")
         else:
             self._speech_run = 0
 
@@ -240,8 +299,10 @@ class TurnEngine:
                 if self._detector is not None
                 else self.config.silence_ms_after_speech
             )
-            if silent_ms >= threshold:
-                result = self._maybe_close(silent_ms)
+            # firered 가 speech_end 를 관측했으면 즉시 판정(모델 자체 hangover 사용),
+            # 아니면 기존 시간 임계를 안전망으로 유지한다.
+            if vad_end or silent_ms >= threshold:
+                result = self._maybe_close(silent_ms, vad_end=vad_end)
                 if result is not None:
                     return result
         else:
@@ -250,19 +311,22 @@ class TurnEngine:
                 return self._close_result(reason="no speech")
 
         if (now - self._turn_start) * 1000 >= self.config.max_turn_ms:
-            return self._close_result(reason="max duration")
+            kind = "max duration" if self._speech_started else "no speech"
+            # 안전장치는 발화가 있었으면 짧아도 버리지 않는다.
+            return self._close_result(reason=kind, force=self._speech_started)
         return None
 
     # -- 판정 보조 ----------------------------------------------------
-    def _maybe_close(self, silent_ms: float) -> Optional[TurnResult]:
+    def _maybe_close(self, silent_ms: float, vad_end: bool = False) -> Optional[TurnResult]:
         """1차 silence 판정 → (NAMO 있으면) 턴 판정 → 확정 또는 계속 듣기."""
+        first = "vad-end" if vad_end else f"silence {silent_ms:.0f}ms"
         # NAMO 없음 → 기존 동작
         if self._detector is None:
-            return self._close_result(reason=f"silence {silent_ms:.0f}ms")
+            return self._close_result(reason=first)
 
         pcm = bytes(self._buf)
         if len(pcm) < self.config.detect_min_bytes:
-            return self._close_result(reason=f"silence {silent_ms:.0f}ms")
+            return self._close_result(reason=first)
 
         # 동일 버퍼 반복 전사를 막는다 (0.5초 간격)
         now = time.monotonic()
@@ -275,7 +339,7 @@ class TurnEngine:
         if not text.strip():
             # 전사가 비면 판단 근거가 없다 → 시간 기반으로 확정
             log.info("turn: 전사 공백 — 시간 기반 확정")
-            return self._close_result(reason=f"silence {silent_ms:.0f}ms")
+            return self._close_result(reason=first)
 
         end, conf = self._detector.predict(text)
         is_end = end and conf >= self.config.detector_threshold
@@ -290,10 +354,19 @@ class TurnEngine:
         self._probe_text = text
         return None
 
-    def _close_result(self, reason: str, text: str = "") -> Optional[TurnResult]:
+    def _close_result(self, reason: str, text: str = "",
+                      force: bool = False) -> Optional[TurnResult]:
+        """턴을 닫는다.
+
+        force=True 이면 min_turn_bytes 를 무시한다. 실측 벤치에서 "짧은 클립이
+        turn 수 0 으로 나오는" 문제가 있었다: 발화 시작 전(첫 2프레임) 오디오는
+        버퍼에 안 쌓이고, 시작 프레임 자체도 누락되므로 실제 턴 오디오가
+        min_turn_bytes(0.3초)보다 작아지면 조용히 버려진다. 라이브에서는
+        `max duration` 안전장치가 같은 문제를 만든다(대화가 사라짐).
+        """
         pcm = bytes(self._buf)
         self.reset()
-        if len(pcm) < self.config.min_turn_bytes:
+        if not force and len(pcm) < self.config.min_turn_bytes:
             log.info("turn: 종료(%s) — 오디오 부족 %dB", reason, len(pcm))
             return None
         log.info("turn: 종료(%s) — %dB (%.2fs)", reason, len(pcm),
