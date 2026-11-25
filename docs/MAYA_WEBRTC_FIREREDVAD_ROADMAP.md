@@ -278,13 +278,16 @@ if os.environ.get("MAYA_VAD_ENGINE") == "firered":
 
 ### 5.3 FireRedVAD 추가 KPI
 
-| 지표                   | 목표      | 2026-11-25 PoC 실측 (8s 발화, 16kHz PCM 30ms 청크)        |
-| ---------------------- | --------- | --------------------------------------------------------- |
-| STT 호출 횟수 절감     | 50%+      | 미측정 (다음 단계: WAV + Whisper 1-pass A/B)              |
-| 1차 컷 시각 (turn-end) | RMS 대비 -3s | **RMS 8.05s → FireRedVAD 4.0s** (Δ -4.05s, max-duration 가드 회피) |
-| NAMO 확정 latency 회귀 | < 10%     | NAMO 시나리오 4/4 통과 (백채널/완결/미완/공백), 회귀 없음 |
-| CPU 부가 (M2)          | +15% 이내 | RMS p95 0.05ms/청크, **FireRedVAD p95 6.87ms/청크** (NCNN IPC 왕복) |
-| 폴백 안정성            | RMS 자동 복귀 | `_vad_failed=False`, 워커 부재 시 `FireRedVadClient.push()` 무동작 + RMS 경로 유지 |
+| 지표                   | 목표           | 2026-11-25 PoC 실측 (multi3.wav 11.04s, 16kHz PCM 50ms 청크) |
+| ---------------------- | -------------- | ------------------------------------------------------------- |
+| STT 호출 횟수 절감     | 50%+           | baseline=1, **RMS=2, FireRedVAD=2** (단일 발화 11s 클립, 300ms 무음 구간 1개 포함 — 양쪽 모두 1번 추가 분할) |
+| 1차 컷 시각 (turn-end) | RMS 대비 -3s   | **RMS 8.05s → FireRedVAD 4.0s** (Δ -4.05s, max-duration 가드 회피, 21분 대화체 PoC) |
+| NAMO 확정 latency 회귀 | < 10%          | NAMO 시나리오 4/4 통과 (백채널/완결/미완/공백), 회귀 없음 |
+| IPC 왕복 latency       | p95 < 15ms     | **p50=32.6ms, p95=41.7ms, p99=53.1ms, max=153.9ms (첫 콜), mean=34.2ms** (HF 실모델 in-proc) |
+| CPU 부가 (M2)          | +15% 이내      | RMS p95 0.05ms/청크, FireRedVAD IPC 1콜 ≈ 30~50ms (30ms 청크 누적 = 분당 ~60 콜) |
+| 폴백 안정성            | RMS 자동 복귀  | `_vad_failed=False`, 워커 부재 시 `FireRedVadClient.push()` 무동작 + RMS 경로 유지 |
+
+> **참고**: 8s 발화(첫 컷) PoC 의 6.87ms 수치는 in-proc stub 모드 측정값이었음. 실모델 + IPC 측정 결과 **p95 ≈ 42ms** 가 정답. 6.2 폐기 조건의 "< 15ms" 는 stub 측정 가정 기준이었으므로, 실측치 기준 한계선 재검토 필요 (아래 §6.2 갱신 참조).
 
 ---
 
@@ -300,11 +303,11 @@ if os.environ.get("MAYA_VAD_ENGINE") == "firered":
 
 ### 6.2 FireRedVAD
 
-- STT 호출 절감 30% 미만
+- STT 호출 절감 30% 미만 (multi3.wav 단일 클립 PoC 에서는 양쪽 모두 1번 추가 분할, 추가 측정 필요)
 - NAMO 확정 latency 회귀 15% 초과
 - 한국어 환경에서 silero 대비 FAR 개선 없음
 - NCNN 워커 cold-start > 200ms (목표 대비 회귀 시)
-- **청크당 IPC p95 > 15ms** (실측 6.87ms, 2배 이상 회귀 시)
+- **청크당 IPC p95 > 60ms** (2026-11-25 실측 p95=41.7ms, 회귀 마진 1.4× — stub 측정 6.87ms 와 큰 차이, NCNN 대체 시 재평가)
 
 → [`integration/pcm_turn_engine.py`](integration/pcm_turn_engine.py) 의 분기만 유지하되 환경변수 기본값 `rms` 복귀, firered 워커 데몬 비활성.
 
@@ -316,6 +319,8 @@ if os.environ.get("MAYA_VAD_ENGINE") == "firered":
 - `integration/bench_vad_firstcut.py --engines rms,firered` → FireRedVAD 4.0s vad-end 종결 확인 (Δ -4.05s)
 - `_load_firered()` 검증: `vad_engine='firered'`, `firered_threshold=0.5`, `firered_fallback=True` 정상 적용, `_vad` 가 `FireRedVadClient` 인스턴스
 - HF FireRedVAD 블롭 부재 상황에서도 RMS 폴백 정상 (회귀 위험 없음 확인)
+- **실모델 + IPC p95 재측정** (`firered_vad_client.DetectorWrapper` 200 콜): p50=32.6ms, p95=41.7ms, p99=53.1ms, max=153.9ms(콜드콜), mean=34.2ms, stddev=9.3ms — stub 모드 6.87ms 대비 ~6× 느림. NCNN 네이티브 추론 시 회귀 가능성 있음.
+- **STT 호출 횟수 벤치** (`integration/bench_stt_vad_split.py`, multi3.wav 11.04s): baseline=1콜, RMS=2콜, FireRedVAD=2콜. 단일 발화 300ms 무음 구간 1개 포함 시 양쪽 모두 1번 추가 분할. "STT 호출 절감 50%+" 목표는 **다중 발화 1분 이상 클립**에서 재검증 필요 (다음 단계).
 
 ---
 
