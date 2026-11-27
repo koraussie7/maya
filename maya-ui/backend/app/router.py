@@ -51,16 +51,61 @@ def _norm(text: str) -> str:
     return re.sub(r"[\s,.!?~…'\"()\[\]]+", "", (text or "").lower())
 
 
+# 한국어 명령 끝에 붙는 흔한 어미/조사. `_ends_with` 가 1회만 떼고 재시도한다.
+#   · 실제 음성 입력은 항상 어미가 붙는다 — "그만 할래", "조용히 해줘", "다시 말해줄래".
+#     `_norm` 만으로는 이 케이스가 stop/stop_speaking/repeat 라우트에서 다 미스났다.
+#   · "그만큼 말해줘"(=root "그만큼") 같은 오탐은 `max_chars` 가 짧게 잡혀 있고,
+#     `_strip_particles` 가 root 까지 도달하지 않으므로 그대로 막힌다.
+_TRAILING_PARTICLES: tuple[str, ...] = (
+    # 요청/명령형
+    "해줄래", "해주세요", "해줄게", "해줘요", "해줘",
+    "할래요", "할래", "할게요", "할게", "할까요", "할까", "하자",
+    "해드릴게",
+    "주세요", "줄래요", "줄래", "줄게", "줘요", "줘",
+    "봐줘", "보자", "봐요", "봐",
+    "해요",
+    # 평서/일반 어미
+    "네요", "다", "지", "지요", "죠", "야", "어", "아",
+    # 부정
+    "마요", "마",
+)
+
+
+def _strip_particles(n: str) -> str:
+    """`_norm` 끝의 한국어 어미/조사를 **한 번만** 떼어 root 를 돌려준다.
+
+    한 번만 떼는 이유: `"조용히해주세요"` 같은 긴 발화는 max_chars 가 잘 막아주지만,
+    너무 공격적으로 자르면 "그만큼 말해줘" 같은 정상 발화도 오탐으로 끌어들인다.
+    또한 root 가 **2글자 미만**으로 줄면 항상 False 를 돌려준다 (방어용).
+    """
+    for p in _TRAILING_PARTICLES:
+        if n.endswith(p) and len(n) - len(p) >= 2:
+            return n[: -len(p)]
+    return n
+
+
 def _ends_with(norm_text: str, kw: str) -> bool:
-    """발화가 그 어휘로 **끝나는지**.
+    """발화가 그 어휘로 **끝나는지** — 한국어 어미가 따라붙어도 인정.
 
     부분 포함으로 매칭했더니 `"그만큼 말해줘"` 가 stop 라우트에 걸렸다(실측).
     명령은 보통 발화 끝에 외친다 — 끝 일치가 훨씬 안전하다.
+    다만 실제 음성 입력은 항상 어미가 붙으므로, 어미를 한 번 떼고도 끝나는지 본다.
     """
-    return bool(norm_text) and norm_text.endswith(kw)
+    if not norm_text:
+        return False
+    if norm_text.endswith(kw):
+        return True
+    stripped = _strip_particles(norm_text)
+    if stripped != norm_text and stripped.endswith(kw):
+        return True
+    return False
 
 
 def _starts_with(norm_text: str, kw: str) -> bool:
+    """시작 매칭도 어미가 *없을 때* 만 인정 — 끝 매칭과 동일 정책.
+
+    '다시' 같은 키워드는 짧고 명확해서 어미가 앞에 붙는 경우는 없으므로 단순화.
+    """
     return bool(norm_text) and norm_text.startswith(kw)
 
 
@@ -157,6 +202,67 @@ class DialogRouter:
             if r.matches(text):
                 return RouteHit(route=r, text=text)
         return None
+
+    # ── Laya rerank 결합 (2026-11-25) ──────────────────────────────────────
+    def match_with_laya(self, text: str, reranker: Any | None = None) -> tuple[RouteHit | None, dict[str, Any]]:
+        """Laya 가 있으면 확률 기반, 없거나 실패하면 rule-based 로 폴백.
+
+        반환: (hit, debug_info)
+          debug_info = {
+            "laya_used": bool,
+            "laya_source": "laya"|"mock"|"fallback"|"disabled",
+            "laya_top_route": str|None,
+            "laya_top_prob": float,
+            "laya_elapsed_ms": float,
+            "laya_abstained": bool,
+            "laya_candidates": [{"route_id": ..., "prob": ...}, ...],
+          }
+        """
+        debug: dict[str, Any] = {
+            "laya_used": False,
+            "laya_source": "disabled",
+            "laya_top_route": None,
+            "laya_top_prob": 0.0,
+            "laya_elapsed_ms": 0.0,
+            "laya_abstained": False,
+            "laya_candidates": [],
+        }
+        if reranker is None:
+            debug["laya_source"] = "disabled"
+            return self.match(text), debug
+
+        try:
+            outcome = reranker.rerank(text, self.routes, top_k=5)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Laya rerank 실패 → rule-only 폴백: %s", exc)
+            return self.match(text), debug
+
+        debug["laya_used"] = True
+        debug["laya_source"] = outcome.source
+        debug["laya_elapsed_ms"] = round(outcome.elapsed_ms, 2)
+        debug["laya_abstained"] = outcome.abstained
+        debug["laya_candidates"] = [
+            {"route_id": r.route_id, "prob": round(r.prob, 3)} for r in outcome.results
+        ]
+        top = outcome.top()
+        if top is None:
+            # Laya 가 abstain → rule-based 로 폴백
+            return self.match(text), debug
+        debug["laya_top_route"] = top.route_id
+        debug["laya_top_prob"] = round(top.prob, 3)
+
+        # Laya 가 확신 있으면 그 route 반환. route 인스턴스를 찾는다.
+        rid_to_route = {r.id: r for r in self.routes}
+        chosen = rid_to_route.get(top.route_id)
+        if chosen is None or top.route_id == "none":
+            return None, debug
+        # rule 도 동시에 확인 — Laya 가 확신하지만 rule 이 0 이면 (예: 신조어) 보수적으로
+        # rule 우선. 둘 다 만족해야 hit 반환.
+        rule_hit = self.match(text)
+        if rule_hit is None and top.prob < 0.85:
+            # rule 도 없고 Laya 도 0.85 미만이면 LLM 으로
+            return None, debug
+        return RouteHit(route=chosen, text=text), debug
 
 
 def _route_kwargs(d: dict[str, Any]) -> dict[str, Any]:

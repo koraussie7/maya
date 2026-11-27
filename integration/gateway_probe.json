@@ -6,17 +6,17 @@
       "rows": [
         {
           "code": 400,
-          "s": 6.37,
-          "body": "{\"error\":{\"message\":\"[400]: Upstream request failed: Model is unavailable. [nvidia/z-ai/glm-5.2 (410), oc/north-mini-code-free (400), felo/felo-social (400), fe"
+          "s": 6.39,
+          "body": "{\"error\":{\"message\":\"[400]: Upstream request failed: Model is unavailable. [nvidia/z-ai/glm-5.2 (410), oc/north-mini-code-free (400), felo/felo-document (400), "
         },
         {
           "code": 400,
-          "s": 3.85,
+          "s": 4.1,
           "body": "{\"error\":{\"message\":\"[400]: Upstream request failed: Model is unavailable. [oc/hy3-free (400), oc/north-mini-code-free (400), oc/deepseek-v4-flash-free (400), o"
         },
         {
           "code": 400,
-          "s": 1.94,
+          "s": 1.27,
           "body": "{\"error\":{\"message\":\"[400]: Upstream request failed: Model is unavailable. [oc/hy3-free (400), oc/north-mini-code-free (400), oc/deepseek-v4-flash-free (400), o"
         }
       ],
@@ -27,17 +27,17 @@
       "rows": [
         {
           "code": 400,
-          "s": 1.14,
+          "s": 1.16,
           "body": "{\"error\":{\"message\":\"[400]: Upstream request failed: Model is unavailable. [oc/hy3-free (400), oc/north-mini-code-free (400), oc/deepseek-v4-flash-free (400), o"
         },
         {
           "code": 400,
-          "s": 4.26,
+          "s": 2.36,
           "body": "{\"error\":{\"message\":\"[400]: Upstream request failed: Model is unavailable. [oc/hy3-free (400), oc/north-mini-code-free (400), oc/deepseek-v4-flash-free (400), o"
         },
         {
           "code": 400,
-          "s": 1.91,
+          "s": 2.51,
           "body": "{\"error\":{\"message\":\"[400]: Upstream request failed: Model is unavailable. [oc/hy3-free (400), oc/north-mini-code-free (400), oc/deepseek-v4-flash-free (400), o"
         }
       ],

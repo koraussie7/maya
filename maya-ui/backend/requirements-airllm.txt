@@ -1,0 +1,13 @@
+# AirLLM 옵트인 의존성 (Maya LLM 폴백/로컬 추론)
+# 2026-11-25 — 통합 플랜 1-3 노드. GPU 가 있으면 70B 모델을 4bit 로 in-process
+# 추론한다. CPU 만 있는 환경에선 1 토큰에 분 단위가 걸리므로 사실상 사용 불가.
+#
+#   pip install -r requirements-airllm.txt
+#
+# 사용:
+#   MAYA_LLM_PROVIDER=airllm MAYA_AIRLLM_REPO=Qwen/Qwen2.5-1.5B-Instruct
+#
+airllm>=0.4
+transformers>=4.40
+accelerate>=0.27
+bitsandbytes>=0.43

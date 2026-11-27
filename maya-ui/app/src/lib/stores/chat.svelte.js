@@ -5,6 +5,8 @@
  * - status: 'pending' | 'streaming' | 'final' | 'error'
  */
 
+/** @typedef {{ id: number|string, role: 'user'|'assistant'|'system', content: string, status: 'pending'|'streaming'|'final'|'error', ts: number }} Msg */
+/** @type {{ messages: Msg[], suggestions: string[] }} */
 export const chatState = $state({
   messages: [],
   /** 추천 프롬프트 (빈 대화일 때 표시) */
@@ -43,6 +45,7 @@ export function addMessage({ role, content, status = "final", id }) {
  * @param {string} content
  * @param {'streaming'|'final'} status
  */
+/** @param {number|string} key @param {string} content @param {'streaming'|'final'} status */
 export function upsertUserMessage(key, content, status = "streaming") {
   const existing = chatState.messages.find(
     (m) => m.role === "user" && m.id === key,
@@ -60,6 +63,7 @@ export function upsertUserMessage(key, content, status = "streaming") {
  * @param {number|string} id
  * @param {string} delta
  */
+/** @param {number|string} id @param {string} delta */
 export function appendDelta(id, delta) {
   const m = chatState.messages.find((m) => m.id === id);
   if (!m) {
@@ -75,6 +79,7 @@ export function appendDelta(id, delta) {
  * @param {number|string} id
  * @param {string} content
  */
+/** @param {number|string} id @param {string} content */
 export function finalizeMessage(id, content) {
   const m = chatState.messages.find((m) => m.id === id);
   if (!m) {
@@ -86,16 +91,19 @@ export function finalizeMessage(id, content) {
 }
 
 /** chat에 에러 메시지 1건 푸시 */
+/** @param {string} text */
 export function setErrorMessage(text) {
   addMessage({ role: "system", content: text, status: "error" });
 }
 
+/** @param {number|string} id @param {Partial<Msg>} patch */
 export function updateMessage(id, patch) {
   const idx = chatState.messages.findIndex((m) => m.id === id);
   if (idx >= 0)
     chatState.messages[idx] = { ...chatState.messages[idx], ...patch };
 }
 
+/** @param {number|string} id @param {string} delta */
 export function appendToMessage(id, delta) {
   const m = chatState.messages.find((m) => m.id === id);
   if (m) m.content += delta;

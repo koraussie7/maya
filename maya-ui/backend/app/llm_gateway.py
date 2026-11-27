@@ -42,8 +42,8 @@ def normalize_base_url(base: str) -> str:
 
 
 def needs_api_key(provider: str, model: str) -> bool:
-    """keirouter 는 모델과 무관하게 키가 필요하다. local(ollama) 만 키 없이 동작한다."""
-    return provider != "local"
+    """keirouter 는 모델과 무관하게 키가 필요하다. local(ollama) 와 airllm(in-process) 은 키 없이 동작한다."""
+    return provider not in ("local", "airllm")
 
 
 def health_url(base: str) -> str:

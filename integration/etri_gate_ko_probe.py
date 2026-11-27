@@ -51,6 +51,15 @@ UTTERANCES = [
     ("chat", "어 분위기 확 바뀌네"),
 ]
 
+# 확장 세트 — **KO_VERBS 목록에 없는 동사**만 골랐다. 15건 0/15 는 문장을 규칙에 맞춰
+# 고른 결과였는지 확인하는 용도다(실측: 아래 EXTRA 15건 중 17/25 누락 → 규칙 의존 불가).
+EXTRA_CMDS = [
+    "봐줘 오늘 뉴스", "알아봐 내일 날씨", "정리해 책상", "번역해 이 문장",
+    "요약해 이거", "편집해 사진", "올려줘 유튜브에", "내려줘 볼륨",
+    "인쇄 해줘", "알람 맞춰줘", "추가해 친구", "새로고침 해", "조용히 해",
+    "크게 해", "작게 해",
+]
+
 # 한국어 명령 동사(어간). 형태소 분석 없이 "포함" 규칙만 쓴다 — 최소 침습 검증용.
 KO_VERBS = {
     "열어", "켜", "꺼", "줄여", "늘려", "키워", "틀어", "재생", "멈춰", "그만",
@@ -116,6 +125,23 @@ def main() -> int:
     print("-" * 70)
     print(f"오판: etri 원본 {wrong_etri}/{n}, 한국어 규칙(동사목록만 추가) {wrong_ko}/{n}")
 
+    # 확장 세트 — 동사목록 밖 표현. 규칙(ko_gate)이 일반화되는지 보는 지표.
+    extra_rows = []
+    miss_etri = miss_ko = 0
+    for text in EXTRA_CMDS:
+        j = etri.judge(text)
+        k = ko_gate(text)
+        miss_etri += int(not j.is_command)
+        miss_ko += int(not k["is_command"])
+        extra_rows.append({"text": text,
+                           "etri": {"is_command": j.is_command, "conf": j.confidence},
+                           "ko": k})
+    ne = len(EXTRA_CMDS)
+    print(f"확장(동사목록 밖 명령 {ne}건) 누락: etri {miss_etri}/{ne}, "
+          f"한국어 규칙 {miss_ko}/{ne}")
+    if miss_ko:
+        print("  누락 예: " + ", ".join(r["text"] for r in extra_rows if not r["ko"]["is_command"])[:160])
+
     # 우리 turn_detector 가 있으면 함께 돌려 오판을 비교한다(모델 없으면 건너뜀)
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -135,6 +161,8 @@ def main() -> int:
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "etri_gate_ko_probe.json")
     with open(out, "w", encoding="utf-8") as f:
         json.dump({"utterances": rows, "etri_wrong": wrong_etri, "ko_wrong": wrong_ko,
+                   "extra": extra_rows, "extra_miss_etri": miss_etri,
+                   "extra_miss_ko": miss_ko,
                    "etri_source": ETRI}, f, ensure_ascii=False, indent=2)
     print(f"보고서: {out}")
     return 0

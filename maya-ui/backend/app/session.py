@@ -18,6 +18,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from .config import SETTINGS
 from .llm import stream_chat
+from .rag.pipeline import answer_with_rag  # Agent 1: _maybe_rag hook
 from .protocol import (
     ClientMsgType,
     Phase,
@@ -25,11 +26,13 @@ from .protocol import (
     WSMessage,
 )
 from .router import DialogRouter
+from .router_laya import LayaReranker, RerankOutcome
 from .sentence_split import SentenceSplitter
 from .stt import transcribe_wav
 from .summary import context_prefix, maybe_summarize
 from .transcript import TranscriptStore, recent_turns
 from .tts import synthesize
+from .tts_router import get_router as _get_tts_router
 
 # Opus 송출은 선택 기능 — opuslib/플랫폼 문제로 실패해도 대화는 계속돼야 한다.
 try:  # noqa: SIM105
@@ -42,7 +45,7 @@ log = logging.getLogger(__name__)
 
 #: 페르소나(prompt + voice) 를 매 세션에 새로 읽는다 — 운영 중에 `MAYA_PERSONA` 를
 #: 바꾸면 다음 대화부터 적용된다(재시작 없이 프롬프트 실험 가능).
-from .persona import Persona, load_persona  # noqa: E402
+from .persona import Persona, load_persona, pace_policy  # noqa: E402
 
 
 def _system_prompt() -> str:
@@ -129,6 +132,9 @@ class Session:
     router: Any = None
     #: 원문 기록(append-only). `messages` 는 **전송용 컨텍스트**일 뿐이다.
     transcript: Any = None
+    #: Laya reranker (System-2). 기본은 `LayaReranker.from_env()` 의 lazy 싱글톤.
+    #: 외부 주입이 필요하면 `handle_client` 직전에 세션 생성 시 넘겨준다.
+    reranker: Any = None
     _send_q: asyncio.Queue[WSMessage | None] = field(default_factory=asyncio.Queue)
     _sender_task: asyncio.Task | None = None
 
@@ -138,13 +144,78 @@ class Session:
         if not self.messages:
             self.messages.append({"role": "system", "content": self.persona.system_message})
 
+    def _resolve_reranker(self) -> "LayaReranker | None":
+        """세션이 처음 라우팅을 호출할 때 lazy 초기화.
+
+        * `MAYA_LAYA_DISABLE=1` 이면 즉시 None (rerank 자체를 끈다).
+        * 그 외에는 `LayaReranker.from_env()` — mock 모드면 안전하게 fallback.
+        * 한 번 만들면 캐시 — 프로세스당 1회만 import 부담을 진다.
+        """
+        if self.reranker is not None:
+            return self.reranker
+        if os.getenv("MAYA_LAYA_DISABLE") == "1":
+            self.reranker = None
+            return None
+        try:
+            from app.router_laya import LayaReranker
+            self.reranker = LayaReranker.from_env()
+        except Exception:  # noqa: BLE001 — import 실패/예외 시 안전하게 끈다
+            self.reranker = None
+        return self.reranker
+
+    # ── TTS 메타 헬퍼 ─────────────────────────────────────────────────
+    # 2026-11-26 — `tts_router.describe()` 가 priority/alive/voices 까지
+    # 만들지만, 기존 SESSION_READY 페이로드에는 tts_provider/voice/url 만
+    # 실려 프론트 음성 메뉴가 비어 있었다. 한 곳에 모은다.
+    def _tts_ready_payload(self) -> dict[str, Any]:
+        persona_meta = {
+            "id":   self.persona.id,
+            "name": self.persona.name,
+            "pace": self.persona.pace,
+        } if self.persona else {"id": "", "name": "", "pace": "normal"}
+        tts_meta = {
+            "tts_provider":   SETTINGS.tts_provider,
+            "tts_voice":      SETTINGS.tts_voice,
+            "pocket_tts_url": (
+                SETTINGS.pocket_tts_url
+                if SETTINGS.tts_provider == "pocket" else ""
+            ),
+        }
+        # tts_router 가 죽어 있어도(예: 임포트 실패) 페이로드는 항상 보낸다.
+        try:
+            router_info = _get_tts_router().describe() or {}
+        except Exception:  # noqa: BLE001
+            router_info = {}
+        # voices 가 객체 리스트(dict) 면 그대로, 문자열 리스트면 {id,label} 로 정규화.
+        voices_raw = router_info.get("voices") or []
+        voices_norm: list[dict[str, str]] = []
+        for v in voices_raw:
+            if isinstance(v, dict):
+                voices_norm.append({
+                    "id":    str(v.get("id", "")),
+                    "label": str(v.get("label", v.get("id", ""))),
+                })
+            elif isinstance(v, str):
+                voices_norm.append({"id": v, "label": v})
+        return {
+            "session_id": self.id,
+            **persona_meta,
+            **tts_meta,
+            "tts_priority": list(router_info.get("priority") or []),
+            "tts_alive":    dict(router_info.get("alive") or {}),
+            "voices":       voices_norm,
+        }
+
     async def start(self) -> None:
         self.id = self.id or str(uuid.uuid4())
         if self.transcript is None:
             self.transcript = TranscriptStore(self.id)
         self._sender_task = asyncio.create_task(self._sender())
+        # 2026-11-25 — persona 메타데이터(id/name/pace)를 페이로드에 실어 보낸다.
+        # 2026-11-26 — 음성 메뉴 호환을 위해 helper 가 tts_provider/voice/url +
+        # priority/alive/voices 까지 한 번에 실어 보낸다.
         await self._sendq(WSMessage(type=ServerMsgType.SESSION_READY.value,
-                                    payload={"session_id": self.id}))
+                                    payload=self._tts_ready_payload()))
         await self._sendq(WSMessage(type=ServerMsgType.PHASE.value,
                                     payload={"phase": Phase.IDLE.value}))
 
@@ -164,7 +235,7 @@ class Session:
         await self._send_q.put(msg)
 
     async def _send_textq(self, type_: str, **payload: Any) -> None:
-        await self._send_q.put(WSMessage(type=type_, **payload))
+        await self._send_q.put(WSMessage(type=type_, payload=payload))
 
     async def on_audio_chunk(self, payload: dict[str, Any]) -> None:
         b64 = payload.get("data", "")
@@ -226,6 +297,13 @@ class Session:
 
     async def end(self) -> None:
         self.closed = True
+        # 2026-11-25 — 통화 종료를 IDLE 보다 명확한 신호(ENDED)로 송출.
+        # 송신 루프가 아직 살아있을 때만 시도한다(None 신호 후에 enqueue 해도 안 나감).
+        try:
+            await self._sendq(WSMessage(type=ServerMsgType.PHASE.value,
+                                        payload={"phase": Phase.ENDED.value}))
+        except Exception:  # noqa: BLE001
+            pass
         # 송신 루프 종료 신호
         await self._send_q.put(None)
         if self._sender_task:
@@ -239,8 +317,15 @@ class Session:
             pass
 
     async def _interrupt(self) -> None:
-        """진행 중 응답/재생 중단 (구현 단순화: 플래그만)."""
+        """진행 중 응답/재생 중단 (구현 단순화: 플래그만).
+
+        2026-11-25 — Phase enum 확장에 맞춰 양보(YIELDED) 신호를 보낸다.
+        프론트는 이 값을 받아 VoiceOrb/Voice 상태를 'yielded' 로 전환할 수 있고,
+        미매핑 상태면 무시해도 무방하다(기존 no-op 정책 유지).
+        """
         self.speaking = False
+        await self._sendq(WSMessage(type=ServerMsgType.PHASE.value,
+                                    payload={"phase": Phase.YIELDED.value}))
 
     async def _handle_utterance(self, pcm: bytes) -> None:
         """오디오 → STT → LLM → TTS."""
@@ -323,11 +408,77 @@ class Session:
         # "그만" / "응" / "다시 말해줘" 같은 유한한 발화는 모델도 합성도 필요 없다.
         # 라우트가 맞으면 고정 문장을 **캐시된 음성**으로 바로 보낸다(체감 0초).
         # 오탐 방지: 짧은 발화 + 발화 끝 일치만 인정(router.py).
+        # ── Laya reranker 통합 (2026-11-25) ───────────────────────────────
+        # rule 매칭이 약하면 Laya(System-2 의사결정 모델) 에게 의사를 묻는다.
+        # threshold(0.85) 이상이면 라우트 확정, 아니면 LLM 자유 대화로 빠진다.
+        # `MAYA_LAYA_MOCK=1` 이거나 laya 미설치면 자동 mock — 실측 결과만 송출.
+        # match_with_laya(text, reranker) → (RouteHit|None, debug dict)
+        # debug keys: rule_hit(bool), laya_source(str|"disabled"),
+        #             laya_top_prob(float), laya_abstained(bool),
+        #             laya_candidates([{route_id, prob, source}])
+        hit: RouteHit | None = None
+        dbg: dict = {}
         if self.router is not None:
-            hit = self.router.match(text)
+            hit, dbg = self.router.match_with_laya(
+                text, self._resolve_reranker())
             if hit is not None:
+                # 결정 로그 송출 — 프론트엔드 `/decisions` 페이지가 구독.
+                laya_hit = bool(dbg.get("laya_hit", False))
+                rule_hit = bool(dbg.get("rule_hit", not laya_hit))
+                hit_source = "laya" if laya_hit else "rule"
+                all_scores = list(dbg.get("laya_candidates") or [])
+                # rule-only hit 일 때는 candidates 가 비어 있으므로 route_id만 채운다.
+                if not all_scores:
+                    all_scores = [{
+                        "route_id": hit.route.id,
+                        "score": 1.0,
+                        "source": hit_source,
+                    }]
+                await self._sendq(WSMessage(
+                    type=ServerMsgType.DECISION_LOG.value,
+                    payload={
+                        "text": text,
+                        "route_id": hit.route.id,
+                        "source": hit_source,
+                        "score": round(
+                            dbg.get("laya_top_prob", 1.0 if hit_source == "rule" else 0.0), 4),
+                        "threshold": 0.85,
+                        "abstained": False,
+                        "rule_hit": rule_hit,
+                        "laya_hit": laya_hit,
+                        "all_scores": [
+                            {
+                                "route_id": c.get("route_id"),
+                                "score": round(float(c.get("prob", 0.0)), 4),
+                                "source": c.get("source"),
+                            } for c in all_scores
+                        ],
+                        "ts": time.time(),
+                    }))
                 await self._send_route(hit, start=time.monotonic())
                 return
+            # abstained — 결정 로그만 남기고 자유 대화로 계속.
+            if dbg.get("laya_abstained"):
+                await self._sendq(WSMessage(
+                    type=ServerMsgType.DECISION_LOG.value,
+                    payload={
+                        "text": text,
+                        "route_id": None,
+                        "source": dbg.get("laya_source"),
+                        "score": round(float(dbg.get("laya_top_prob", 0.0)), 4),
+                        "threshold": 0.85,
+                        "abstained": True,
+                        "rule_hit": bool(dbg.get("rule_hit", False)),
+                        "laya_hit": False,
+                        "all_scores": [
+                            {
+                                "route_id": c.get("route_id"),
+                                "score": round(float(c.get("prob", 0.0)), 4),
+                                "source": c.get("source"),
+                            } for c in (dbg.get("laya_candidates") or [])
+                        ],
+                        "ts": time.time(),
+                    }))
 
         buf: list[str] = []
         start = time.monotonic()
@@ -353,6 +504,12 @@ class Session:
         tts_tasks = [asyncio.create_task(
             self._tts_worker(tts_q, start, tts_stats)) for _ in range(workers)]
         temperature = self.persona.temperature if self.persona else 0.7
+        # ── pace 정책 → LLM 토큰 예산 (2026-11-25) ────────────────────────
+        # persona.pace 가 "narrate" 면 토큰을 더, "eager" 면 덜 — story-teller vs quick-reply.
+        # 정책 테이블은 persona.pace_policy() 에 집중되어 있다.
+        _pace = self.persona.pace if self.persona else "normal"
+        _max_tokens = int(pace_policy(_pace)["max_tokens"])
+        log.info("session=%s pace=%s max_tokens=%d", self.id, _pace, _max_tokens)
         # ── 컨텍스트 창(비용 핵심) ─────────────────────────────────────
         # 매 턴 전체 기록을 보내면 입력 토큰이 턴 수의 제곱으로 커진다(1,000턴 $2.10 실측).
         # `self.messages` 는 계속 쌓아 **기록**으로 두고, LLM 에는 최근 N턴만 보낸다.
@@ -366,7 +523,7 @@ class Session:
             context = [context[0], {"role": "system", "content": prefix}, *context[1:]]
         log.info("session=%s context %d/%d messages (keep_turns=%d, summary=%s)",
                  self.id, len(context), len(self.messages), keep, bool(prefix))
-        async for msg in stream_chat(context, temperature=temperature):
+        async for msg in stream_chat(context, temperature=temperature, max_tokens=_max_tokens):
             if msg.type == ServerMsgType.ASSISTANT_DELTA.value:
                 token = msg.payload.get("text", "")
                 buf.append(token)
@@ -379,6 +536,11 @@ class Session:
         for _ in range(workers):
             tts_q.put_nowait(None)          # 워커별 종료 신호
         full = "".join(buf).strip()
+        # Agent 1: _maybe_rag hook — RAG가 활성화되면 검색 결과를 assistant 메시지에 추가
+        # MAYA_RAG_ENABLED=0 이면 no-op, 기존 사용자 환경에 영향 없음
+        rag_context = answer_with_rag(full) if os.environ.get("MAYA_RAG_ENABLED", "0") == "1" else ""
+        if rag_context:
+            full = f"{full}\n\n[참고] {rag_context}"
         if not full:
             await self._sendq(WSMessage(type=ServerMsgType.PHASE.value,
                                         payload={"phase": Phase.IDLE.value}))
@@ -475,6 +637,14 @@ class Session:
 
 async def handle_client(ws: WebSocket) -> None:
     await ws.accept()
+    # 2026-11-25 — 핸드셰이크 직후, session 준비 전 "CONNECTING" 신호 송출.
+    # Session 인스턴스가 아직 만들어지지 않았으므로 직접 ws.send_json 을 쓴다.
+    try:
+        await ws.send_json({"type": ServerMsgType.PHASE.value,
+                            "phase": Phase.CONNECTING.value})
+    except Exception:  # noqa: BLE001
+        log.warning("CONNECTING 송출 실패(클라이언트가 곧 끊겼을 수 있음)")
+        return
     session = Session(id="", ws=ws, router=get_router())
     await session.start()
     try:
@@ -502,8 +672,12 @@ async def handle_client(ws: WebSocket) -> None:
                 # 프론트는 연결 후 session.start 를 보낸다. 서버는 연결 시 이미
                 # Session() 을 만들어 두었으므로 **빠뜨리지 말고** 준비 알림만 돌려준다.
                 # (이걸 누락하면 레이스가 있어 클라이언트가 영원히 대기한다)
-                await session._sendq(WSMessage(type=ServerMsgType.SESSION_READY.value,
-                                               payload={"session_id": session.id}))
+                # 2026-11-26 — 음성 메뉴 호환: Session 헬퍼가 tts_provider/voice/url +
+                # priority/alive/voices 까지 한 번에 실어 보낸다.
+                await session._sendq(WSMessage(
+                    type=ServerMsgType.SESSION_READY.value,
+                    payload=session._tts_ready_payload(),
+                ))
             elif t == ClientMsgType.INTERRUPT.value:
                 await session.on_interrupt(payload)
             elif t == ClientMsgType.SESSION_END.value:

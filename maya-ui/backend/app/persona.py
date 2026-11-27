@@ -57,6 +57,13 @@ class Persona:
     #: 출처: Digital-Garden 설계 문서의 personality(model) 아이디어 — 자유 텍스트 대신
     #: 슬라이더로 조정 가능한 축을 두면 페르소나를 짧고 일관되게 유지할 수 있다.
     ocean: dict[str, float] = field(default_factory=dict)
+    #: 대화 페이스 — Jev-Interaction 의 4 pace 를 참고.
+    #:   normal  : 기본 응답 리듬
+    #:   patient : 침묵을 길게 견디고 응답을 천천히 (TTS 길이↑, max_turn_ms↑)
+    #:   narrate : 이야기하듯 (LLM max_tokens↑, TTS rate↓)
+    #:   eager   : 적극적으로 끼어듦 (interrupt threshold↓)
+    #: 정책 매핑은 후속 작업. 지금은 persona 메타데이터로만 흘린다.
+    pace: str = "normal"
     raw: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -108,6 +115,46 @@ def _ocean_text(ocean: dict[str, float]) -> str:
         elif v <= 0.38:
             parts.append(f"{label} 낮음 — {low}")
     return "; ".join(parts) + "." if parts else "균형 잡힌 성격."
+
+
+_VALID_PACE = ("normal", "patient", "narrate", "eager")
+
+
+#: 2026-11-25 — pace 별 정책 매핑. 세션/turn_engine/tts 가 이 값을 보고 분기한다.
+#:   max_tokens  : LLM 응답 토큰 예산 (Piper TTS 청크 길이 제한에 맞춰 결정)
+#:   length_scale: TTS 재생 속도 (1.0=기본, 1.15=15% 느리게, 0.9=10% 빠르게)
+#:   max_turn_ms : 발화 수집 안전장치 (조용히 말하는 사용자 여유)
+#:   silence_ms  : 발화 후 침묵 추정 임계값 (말 끝으로 보는 간격)
+#:
+#: 라우터(router.py)는 pace 와 무관 — 고정 결정 응답은 속도와 무관하게 즉시 나가야 한다.
+#: 정책 매핑은 정책 가능성을 **명시적으로 보존**할 뿐, 이 값 자체가 곧 적용은 아니다.
+#: 적용 지점: session.py::_handle_text (max_tokens), tts.py (length_scale),
+#:            pcm_turn_engine.TurnConfig (max_turn_ms/silence_ms)
+_PACE_POLICY: dict[str, dict[str, float]] = {
+    "normal":  {"max_tokens": 384, "length_scale": 1.0,  "max_turn_ms": 8_000,  "silence_ms": 900},
+    "patient": {"max_tokens": 320, "length_scale": 1.15, "max_turn_ms": 12_000, "silence_ms": 1_400},
+    "narrate": {"max_tokens": 560, "length_scale": 1.20, "max_turn_ms": 10_000, "silence_ms": 1_100},
+    "eager":   {"max_tokens": 280, "length_scale": 0.95, "max_turn_ms": 6_000,  "silence_ms": 700},
+}
+
+
+def pace_policy(pace: str) -> dict[str, float]:
+    """pace → 정책 매핑 dict. 알 수 없는 pace 는 normal 정책으로 폴백."""
+    return _PACE_POLICY.get(pace) or _PACE_POLICY["normal"]
+
+
+def _parse_pace(value: Any) -> str:
+    """YAML 의 `pace:` 값을 정규화한다. 알 수 없는 값은 normal 로 폴백 + 경고.
+
+    정책 매핑(어디서 어떤 효과가 나는지)은 후속 작업 — 지금은 메타데이터만.
+    """
+    if value is None:
+        return "normal"
+    s = str(value).strip().lower()
+    if s in _VALID_PACE:
+        return s
+    log.warning("persona pace '%s' 알 수 없음 → normal (허용=%s)", value, _VALID_PACE)
+    return "normal"
 
 
 def _mini_yaml(text: str) -> dict[str, Any]:
@@ -293,4 +340,5 @@ def _from_dict(d: dict[str, Any]) -> dict[str, Any]:
         "voice_ref_wav": ref,
         "voice_prompt_text": str(voice.get("prompt_text") or "").strip(),
         "ocean": ocean,
+        "pace": _parse_pace(d.get("pace")),
     }

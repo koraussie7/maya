@@ -426,3 +426,126 @@ STT 스트리밍 → 부분 전사 → LLM 스트리밍 → 토큰 단위 TTS �
 - `MAYA_OPENROUTER_*` 키 발급/저장 (Keychain 또는 새 .env) — 사용자 권한 작업
 - 백엔드 WebSocket 서버 (`maya-ui/backend/`) — 본 작업의 다음 단계
 
+
+## 13. 2026-11-25 진척 반영 (WebRTC 검토 + FireRedVAD 검토 통합)
+
+원안 12장의 "미해결 / 보류 항목" 중 다수가 라이브로 반영되었고, 동시에 **WebRTC Transport 도입 검토**와 **FireRedVAD 도입 검토**가 추가되어 통합 방향을 재조정한다.
+
+### 13.1 As-Is 정정 (2026-11-25 실측)
+
+| 항목 | 12장 실측 | 현재(2026-11-25) |
+|------|----------|-----------------|
+| 백엔드 WebSocket | `maya-ui/backend/` 비어있음 | **`maya-ui/backend/app/` 작성 완료** — `server.py`(51L) + `session.py`(521L) + `protocol.py`(49L) + `tts.py`(110L) + `stt.py`(205L) 등 합 **936 라인** |
+| privseai.com/maya 라우트 | nginx `/maya` 부재 | **9번 패치로 라이브 복구 완료** — `com.maya.tunnel.plist` 의 autossh `-R 8001`→`8000` 오타 수정. nginx → 110서버 → autossh → Mac :8000 경로에서 **양쪽 WS 엔드포인트 `101 Switching Protocols` 확인** ([`MAYA_VOICE_WORK_STATUS.md` §1](maya/docs/MAYA_VOICE_WORK_STATUS.md)) |
+| LLM 백엔드 | OPENROUTER 키 비어있어 401 | **자체 110 서버 게이트웨이(keirouter `:20128`, `auto/best-fast`)** 로 전환. 서버는 본인 소유 + privseai.com과 동일 서버. nginx `/llm/` 만 남음 |
+| 한국어 STT | faster-whisper small | ✅ 동일. NAMO 54문장 **100% / 26ms** (한국어 턴 판정 강화) |
+| 한국어 TTS | Qwen3-TTS-1.7B | ✅ 동일. 클론 음성은 **VoxCPM 검토 진행**, `speakers.json` 화자 분리 결과 채택 |
+| 한국어 음성 복제 | 사용자 녹음 대기 | **21분 녹음 → 192 세그먼트 → 화자 2군집** 자동 추출, `maya/models/tts/reference/speakers.json` 저장. clip_ref.wav(7.11s) 준비 |
+| Opus 코덱 | 미정 | ✅ **`maya/voicemem/codec/opus_stream.py`** — pyogg+libopus 20ms 프레임. 순음 89% 절감, 4s 음성-유사 75% 절감, 스펙트럼 상관 +0.996 |
+| 클론 음성 캐싱 | 미정 | **라우트 응답("그만", "응", "고마워") 0초 캐시 히트** + 실시간은 piper(0.15~0.34s) 하이브리드 |
+
+### 13.2 검토된 신규 옵션 (적용 여부 결정 필요)
+
+#### 옵션 A — WebRTC Transport 도입 검토
+
+세부 분석은 [`MAYA_WEBRTC_FIREREDVAD_ROADMAP.md`](MAYA_WEBRTC_FIREREDVAD_ROADMAP.md) §2 참조. 요약:
+
+| 긍정 | 부정 |
+|------|------|
+| barge-in 품질 (AEC) | 운영 복잡도 (UDP/ICE/DTLS/STUN/TURN) |
+| 저지연 첫 청크 (20ms Opus 패킷) | 저수준 디버깅 비용 (`sed` 라이브 패치 불가) |
+| 네트워크 변동 회복력 (UDP+jitter buffer+NACK) | aiortc 의존성 + mediasoup/Janus 별도 런타임 |
+| opus 인코딩 위치 클라이언트 이동 | barge-in false-positive → 응답 중간 끊김 리스크 |
+| 모바일/ESP32/SIP 확장 | 자급자족 한 단계 약화 (TURN 의존) |
+
+**결론**: 전체 마이그레이션이 아니라 **격리된 PoC** 로만 검토. 기존 `/ws` 경로 보존하면서 `/rtc` 엔드포인트 신규. 1주일 A/B 후 채택 결정.
+
+#### 옵션 B — FireRedVAD 도입 검토
+
+세부 분석은 [`MAYA_WEBRTC_FIREREDVAD_ROADMAP.md`](MAYA_WEBRTC_FIREREDVAD_ROADMAP.md) §3 참조. 요약:
+
+| 긍정 | 부정 |
+|------|------|
+| 다국어 VAD (100+ 언어, FLEURS F1 97.57%) | 의존성 한 단계 추가 (DFSMN 가중치 + torch/NCNN) |
+| STT 호출 60~80% 절감 가능 | 콜드스타트 +20~50ms (워커 데몬 상주로 해결) |
+| AED로 music/singing/speech 자동 분리 | 한국어 fine-tuning 파이프라인 미공개 |
+| NAMO 대체가 아닌 **1차 컷**으로만 사용 → 회귀 안전 | opuslib → PCM 디코드 hop 추가 |
+| 2.2MB 모델 + NCNN = 어디서나 동작 | 3단 턴 엔진의 명시성 일부 모델로 가림 |
+
+**결론**: PoC로 **1차 silence 판정만 교체**. NAMO 54문장 100% 회귀를 보존하면서 STT 호출만 절감. 환경변수 `MAYA_VAD_ENGINE=firered` 로 A/B.
+
+### 13.3 원안 12.4 즉시 작업 — 완료/미완료 추적
+
+| 12.4 항목 | 상태 | 비고 |
+|----------|------|------|
+| nginx location 블록 추가 | ✅ **9번 패치로 라이브 복구** | `/maya` location 미신설이지만 autossh -R 8000 경로로 동작 중. location 블록 신설은 여전히 권장 |
+| 워크스페이스 안 통합 폴더 생성 | ⏸ **불필요** | 백엔드가 `maya-ui/backend/app/`에 직접 작성됨. `src/` 트리 마이그레이션 불요 |
+| SvelteKit 프론트엔드 위치 | ✅ 채워짐 | `maya-ui/lib/mayaClient.js`, VoiceOrb, Waveform 등 동작 |
+| 백엔드 WebSocket | ✅ 작성 + 라이브 검증 | 936라인, 101 Switching Protocols 확인 |
+
+### 13.4 마이그레이션 단계 재조정
+
+원안 Phase 0~3은 더 이상 단일 폴더 통합 작업이 아니라 **점진적 진화** 형태로 전환한다.
+
+#### Phase A: 현재 코드 안정화 (진행 중, 1~2주)
+
+| 작업 | 내용 | 검증 |
+|------|------|------|
+| A.1 | `com.maya.tunnel.plist` 에 `ServerAliveInterval=30` + `ExitOnForwardFailure=yes` 추가 | `launchctl unload && sed … && launchctl load` |
+| A.2 | nginx `/maya` location 블록 신설 검토 | `curl -i https://privseai.com/maya/` (직접/autossh 우회 제거) |
+| A.3 | vLLM-Omni `/v1/audio/speech` 실측 | `integration/vllm_omni_bench.py` 실행 |
+| A.4 | clip_ref.wav 10초 전체 전사문 → `--prompt-text` | VoxCPM 클론 품질 |
+
+#### Phase B: 옵션 PoC (병렬, 1주일)
+
+| 작업 | 내용 | 검증 |
+|------|------|------|
+| B.1 | FireRedVAD streaming VAD PoC — `pcm_turn_engine.py:_maybe_close` 1차 컷만 교체 | STT 호출 횟수 / NAMO 회귀 / barge-in false-positive 카운트 |
+| B.2 | `/rtc` 엔드포인트 PoC — aiortc + SDP 교환 | 첫 청크 지연, AEC on/off 회귀 |
+| B.3 | 둘 다 `MAYA_VAD_ENGINE=firered` / `MAYA_RTC=on` 환경변수로 격리 | 라이브 WS 경로 보존 |
+
+#### Phase C: 채택 결정 + 메인 통합 (Phase B 후)
+
+| 작업 | 내용 | 검증 |
+|------|------|------|
+| C.1 | PoC 결과 기반 채택/폐기 결정 | 회귀 테스트 + 사용자 라이브 1주일 |
+| C.2 | 채택 시 정식 통합 (롤백 경로 보존) | `MAYA_*` 환경변수로 분기, factory 패턴 유지 |
+| C.3 | 폐기 시 PoC 코드 `archive/` | `git tag` + `archive/2026-11-25-rtc-poc` |
+
+### 13.5 즉시 추가 작업 (2026-11-25 시점)
+
+1. **autossh 영속화 강화** (A.1) — `ServerAliveInterval=30` + `ExitOnForwardFailure=yes` 추가. 110 서버 재부팅 시 silent fail 방지
+2. **FireRedVAD 1차 컷 교체 PoC** (B.1) — `pip install fireredvad[gpu]` 또는 CPU 모드, `pretrained_models/FireRedVAD/Stream-VAD` 다운로드, `integration/pcm_turn_engine.py:_maybe_close` 의 첫 silence 판정만 교체
+3. **WebRTC `/rtc` PoC** (B.2) — `pip install aiortc`, `/rtc` 엔드포인트 신규 작성, SDP 시그널링은 기존 `/ws` 위 datachannel 또는 REST 폴링
+4. **VoxCPM 클론 품질 측정** (A.4) — `integration/voxcpm_tts_bench.py --baseline-piper` 대조
+
+### 13.6 변경된 성공 지표 (KPI 재정의)
+
+| 지표 | 원안 목표 | 현재(2026-11-25) 목표 |
+|------|----------|---------------------|
+| 엔드투엔드 지연 | < 3초 | **< 2.5초** (piper 0.15~0.34s + LLM 1~3s + WS RTT) |
+| STT 호출 절감 | (없음) | FireRedVAD 도입 시 **60~80%** |
+| 한국어 턴 정확도 | (없음) | NAMO 100% (54/54) 회귀 보존 |
+| 라이브 검증 자동화 | (없음) | `integration/verify_live.py` 통과, WS 101 확인 |
+| Live 응답성 | (없음) | privseai.com/maya end-to-end 마이크→TTS 통과 ([작업 10번](maya/docs/MAYA_VOICE_WORK_STATUS.md)) |
+| 코드 중복률 | < 10% | **0%** (단일 백엔드, 단일 프론트) |
+
+### 13.7 통합 결정 — "통합 폴더 이동" 폐기
+
+원안은 단일 `maya-voice/` 폴더로 코드 이관을 제안했으나, **현재 백엔드가 `maya-ui/backend/app/`에 자연스럽게 정착**했고 이 위치가 SvelteKit 프론트엔드와 같은 패키지 안에 있어 배포 단위가 단순해졌다. 따라서 **단일 폴더 통합 작업은 폐기**하고, 대신 **모듈 인터페이스 표준화**(원안 §2.2)만 부분 적용한다.
+
+- `stt/`, `llm/`, `tts/` 추상 베이스 → **factory 함수 수준으로 축소** ([`app/tts.py`](maya-ui/backend/app/tts.py), [`app/llm.py`](maya-ui/backend/app/llm.py))
+- `src/agent/pipeline.py` → **그대로 `app/session.py`가 담당**
+- `src/audio/capture.py` → **프론트 `lib/mayaClient.js`가 담당** (서버는 PCM 수신만)
+- 오디오 포맷 통일(16kHz 모노 S16LE)은 **원안 그대로 채택** — `OpusStreamCodec` 가 envelope 역할로 동작
+
+### 13.8 미해결 / 보류 항목 (2026-11-25 시점)
+
+- 한국어 음성 복제 — VoxCPM 워커 실측 후 결정 (Intel Mac RTF)
+- vLLM-Omni `/v1/audio/speech` 미실측 (스크립트만 작성)
+- WebRTC `/rtc` PoC 미착수
+- FireRedVAD PoC 미착수
+- nginx `/maya` location 블록 신설 (autossh 우회 의존 상태)
+- autossh 영속화 강화 (ServerAliveInterval / ExitOnForwardFailure)
+
+---

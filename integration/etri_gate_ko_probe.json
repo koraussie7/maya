@@ -52,7 +52,7 @@
       },
       "ko": {
         "is_command": true,
-        "verb": "재생",
+        "verb": "다음",
         "why": "동사 포함"
       }
     },
@@ -209,5 +209,189 @@
   ],
   "etri_wrong": 9,
   "ko_wrong": 0,
+  "extra": [
+    {
+      "text": "봐줘 오늘 뉴스",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    },
+    {
+      "text": "알아봐 내일 날씨",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    },
+    {
+      "text": "정리해 책상",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    },
+    {
+      "text": "번역해 이 문장",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    },
+    {
+      "text": "요약해 이거",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    },
+    {
+      "text": "편집해 사진",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    },
+    {
+      "text": "올려줘 유튜브에",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    },
+    {
+      "text": "내려줘 볼륨",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    },
+    {
+      "text": "인쇄 해줘",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    },
+    {
+      "text": "알람 맞춰줘",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    },
+    {
+      "text": "추가해 친구",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    },
+    {
+      "text": "새로고침 해",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    },
+    {
+      "text": "조용히 해",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    },
+    {
+      "text": "크게 해",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    },
+    {
+      "text": "작게 해",
+      "etri": {
+        "is_command": false,
+        "conf": 0.0
+      },
+      "ko": {
+        "is_command": false,
+        "verb": null,
+        "why": "동사 없음"
+      }
+    }
+  ],
+  "extra_miss_etri": 15,
+  "extra_miss_ko": 15,
   "etri_source": "/tmp/etri-vc"
 }

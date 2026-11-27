@@ -8,6 +8,7 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import SETTINGS
+from .knowledge_router import router as knowledge_router  # Agent 1: include_router 1줄
 from .session import handle_client
 
 logging.basicConfig(
@@ -24,6 +25,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Agent 1: include_router 1줄 — /knowledge/* 엔드포인트 등록
+app.include_router(knowledge_router)
 
 
 @app.get("/healthz")

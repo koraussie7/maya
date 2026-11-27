@@ -12,7 +12,7 @@ export const sessionState = $state({
   /** 마이크 권한 */
   micGranted: false,
   /** 마지막 에러 메시지 */
-  error: null,
+  error: /** @type {string|null} */ (null),
   /** 현재 음성 RMS (0~1, Waveform 표시용) */
   level: 0,
   /** 피크 (0~1) */
@@ -21,7 +21,9 @@ export const sessionState = $state({
   speaking: false,
 });
 
-/** phase 변경 (idle | listening | thinking | speaking | error) */
+/** @typedef {'idle' | 'listening' | 'thinking' | 'speaking' | 'error'} Phase */
+
+/** @param {Phase} phase */
 export function setPhase(phase) {
   if (!["idle", "listening", "thinking", "speaking", "error"].includes(phase)) {
     sessionState.error = `invalid phase: ${phase}`;
@@ -32,22 +34,26 @@ export function setPhase(phase) {
 }
 
 /** 마이크 권한 상태 변경 */
+/** @param {boolean|string|undefined} granted */
 export function setMic(granted) {
   sessionState.micGranted = !!granted;
 }
 
 /** 입력 RMS/피크 갱신 (0~1) */
+/** @param {number} rms @param {number} [peak] */
 export function setLevel(rms, peak = rms) {
   sessionState.level = Math.max(0, Math.min(1, Number(rms) || 0));
   sessionState.peak = Math.max(0, Math.min(1, Number(peak) || 0));
 }
 
 /** 재생 중 여부 */
+/** @param {boolean|string|undefined} on */
 export function setSpeaking(on) {
   sessionState.speaking = !!on;
 }
 
 /** WebSocket 연결 상태 */
+/** @param {boolean|string|undefined} on */
 export function setConnected(on) {
   sessionState.connected = !!on;
 }
@@ -57,6 +63,7 @@ export function resetPhase() {
   sessionState.error = null;
 }
 
+/** @param {string} msg */
 export function setError(msg) {
   sessionState.phase = "error";
   sessionState.error = msg;

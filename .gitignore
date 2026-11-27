@@ -65,3 +65,20 @@ maya/transcripts/
 
 # ─── Output reports / large ───────────
 *.json.bak
+
+# ─── Model weights (NEVER push — >100MB/file) ──
+*.gguf
+*.safetensors
+*.pth
+*.onnx
+*.bin
+models/
+models_cache/
+gguf_downloads/
+ollama_models/
+llama.cpp/
+whisper_stt/models/
+OrcaBonsai*/
+~/
+-.aiff
+*.aiff
