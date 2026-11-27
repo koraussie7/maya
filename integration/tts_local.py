@@ -132,8 +132,21 @@ ROOT = _ROOT
 # 워커는 이 스크립트와 같은 디렉터리(즉, integration/)에서 항상 찾는다.
 # 모델/ref 가 다른 트리에 있더라도 워커는 호출 스크립트와 같은 자리에 둔다.
 _WORKER_DIR = _THIS_DIR
-DEFAULT_PIPER_MODEL = os.path.join(
-    ROOT, "models", "tts", "piper-ko", "ko_KR-kss-medium.onnx"
+# piper 모델 경로 — 저장소 안에 커밋된 실제 위치를 먼저 보고,
+# 예전 레이아웃(models/tts/piper-ko)도 계속 지원한다.
+#   maya/models/tts/piper/                             ← 현재 (LFS)
+#   models/tts/piper-ko/                               ← 예전
+# PIPER_MODEL 환경변수가 있으면 최우선.
+_PIPER_MODEL_CANDIDATES = [
+    os.environ.get("PIPER_MODEL"),
+    os.path.join(ROOT, "models", "tts", "piper-ko", "ko_KR-kss-medium.onnx"),
+    os.path.join(ROOT, "maya", "models", "tts", "piper", "ko_KR-kss-medium.onnx"),
+    os.path.join(_THIS_DIR, "..", "maya", "models", "tts", "piper",
+                 "ko_KR-kss-medium.onnx"),
+]
+DEFAULT_PIPER_MODEL = next(
+    (os.path.normpath(p) for p in _PIPER_MODEL_CANDIDATES if p and os.path.isfile(p)),
+    os.path.join(ROOT, "models", "tts", "piper-ko", "ko_KR-kss-medium.onnx"),
 )
 # piper 워커는 tools/piper_worker.py 가 표준 위치 (없으면 _WORKER_DIR 에서도 찾음)
 _PIPER_CANDIDATES = [
@@ -143,6 +156,19 @@ _PIPER_CANDIDATES = [
 ]
 WORKER = next((p for p in _PIPER_CANDIDATES if p and os.path.isfile(p)),
               _PIPER_CANDIDATES[1])
+# matcha 워커 경로 및 모델 후보
+_MATCHA_WORKER = os.path.join(_WORKER_DIR, "matcha_worker.py")
+_MATCHA_MODEL_CANDIDATES = [
+    os.environ.get("MATCHA_MODEL_CHECKPOINT"),
+    os.path.join(ROOT, "models", "tts", "matcha", "model.ckpt"),
+    os.path.join(ROOT, "maya", "models", "tts", "matcha", "model.ckpt"),
+]
+DEFAULT_MATCHA_MODEL = next(
+    (os.path.normpath(p) for p in _MATCHA_MODEL_CANDIDATES if p and os.path.isfile(p)),
+    "",
+)
+DEFAULT_MATCHA_WORKER = _MATCHA_WORKER if os.path.isfile(_MATCHA_WORKER) else ""
+
 # voxcpm 워커는 옵션 A(HF Space API) / B(llama.cpp-omni local) 두 가지 경로를 지원한다.
 VOXCPM_API_WORKER = os.environ.get(
     "VOXCPM_API_WORKER",
@@ -197,6 +223,11 @@ class LocalTTS:
         self._voxcpm_target_rate: int = TARGET_RATE
         self._voxcpm_meta: dict = {}
         self._voxcpm_error: Optional[str] = None
+        # matcha 워커
+        self._matcha = None
+        self._matcha_rate: int = TARGET_RATE  # matcha_worker.py 의 SAMPLE_RATE 기본값과 동일(22050→리샘플)
+        self._matcha_error: Optional[str] = None
+        self._matcha_worker_path: Optional[str] = None
 
         # engine 해석 순서:
         #   TTS_ENGINE (생성자 인자) > VOXCPM_ENGINE (auto 일 때 voxcpm 디스패치) > "auto"
@@ -219,6 +250,12 @@ class LocalTTS:
                 self.engine = "say"
         elif want == "say":
             self.engine = "say"
+        elif want == "matcha":
+            if self._init_matcha():
+                self.engine = "matcha"
+            else:
+                log.error("TTS_ENGINE=matcha 초기화 실패 → say 폴백")
+                self.engine = "say"
         else:  # auto
             # 1) voxcpm-api 시도
             voxcpm_kind = os.environ.get("VOXCPM_ENGINE", "voxcpm-api").lower()
@@ -227,7 +264,11 @@ class LocalTTS:
                              else VOXCPM_LOCAL_WORKER)
             if self._init_voxcpm(voxcpm_worker):
                 self.engine = "voxcpm-api" if voxcpm_kind != "voxcpm_local" else "voxcpm-local"
-            # 2) piper 시도 (voxcpm 실패 시)
+            # 2) matcha 시도 (voxcpm 실패 시, 모델이 있으면)
+            elif DEFAULT_MATCHA_MODEL and self._init_matcha():
+                log.warning("voxcpm 초기화 실패 → matcha 폴백")
+                self.engine = "matcha"
+            # 3) piper 시도 (voxcpm/matcha 실패 시)
             elif self._init_piper():
                 log.warning("voxcpm 초기화 실패 → piper 폴백")
                 self.engine = "piper"
@@ -348,6 +389,73 @@ class LocalTTS:
                     pass
                 self._voxcpm = None
             return False
+
+    # ── matcha 워커 초기화 ─────────────────────────────────────────
+    def _init_matcha(self) -> bool:
+        """matcha_worker.py 서브프로세스를 띄운다.
+
+        piper_worker.py 와 동일한 IPC 규약을 따른다.
+        """
+        worker = self._matcha_worker_path or DEFAULT_MATCHA_WORKER
+        if not worker or not os.path.isfile(worker):
+            self._matcha_error = f"matcha 워커 없음: {worker}"
+            log.warning("matcha 사용 불가 (%s)", self._matcha_error)
+            return False
+        if not DEFAULT_MATCHA_MODEL:
+            self._matcha_error = "matcha 모델 파일 없음 (MATCHA_MODEL_CHECKPOINT)"
+            log.warning("matcha 사용 불가 (%s)", self._matcha_error)
+            return False
+        try:
+            env = os.environ.copy()
+            env["MATCHA_MODEL_CHECKPOINT"] = DEFAULT_MATCHA_MODEL
+            env.setdefault("MATCHA_DEVICE", "cpu")
+            env.setdefault("MATCHA_SAMPLE_RATE", str(TARGET_RATE))
+            self._matcha = subprocess.Popen(
+                [sys.executable, worker],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL, bufsize=0,
+                env=env,
+            )
+            status, payload = self._worker_read(self._matcha)
+            if status != 0:
+                raise RuntimeError(payload.decode("utf-8", "replace"))
+            try:
+                self._matcha_rate = int(payload.decode("utf-8").strip())
+            except Exception:
+                self._matcha_rate = TARGET_RATE
+            self._matcha_worker_path = worker
+            log.info("matcha 워커 준비: pid=%s rate=%dHz",
+                     self._matcha.pid, self._matcha_rate)
+            return True
+        except Exception as exc:  # noqa: BLE001
+            self._matcha_error = f"{type(exc).__name__}: {exc}"
+            log.warning("matcha 로드 실패 (%s)", self._matcha_error)
+            if self._matcha is not None:
+                try:
+                    self._matcha.kill()
+                except Exception:  # noqa: BLE001
+                    pass
+                self._matcha = None
+            return False
+
+    def _matcha_synth(self, text: str) -> bytes:
+        """matcha 워커에 합성을 요청하고 Int16 mono PCM 으로 반환한다."""
+        if self._matcha is None or self._matcha.poll() is not None:
+            log.warning("matcha 워커 종료 감지 → 재기동")
+            self._matcha = None
+            if not self._init_matcha():
+                raise RuntimeError(self._matcha_error or "재기동 실패")
+        data = text.encode("utf-8")
+        self._matcha.stdin.write(struct.pack(">I", len(data)) + data)
+        self._matcha.stdin.flush()
+        status, payload = self._worker_read(self._matcha)
+        if status != 0:
+            raise RuntimeError(payload.decode("utf-8", "replace"))
+        if not payload:
+            return b""
+        if self._matcha_rate == TARGET_RATE:
+            return payload
+        return self._resample(payload, self._matcha_rate, TARGET_RATE)
 
     def _voxcpm_synth(self, text: str, ref_wav: str | None = None,
                       prompt_text: str | None = None) -> bytes:
@@ -531,6 +639,14 @@ class LocalTTS:
                 log.warning("piper 빈 결과 → say 폴백")
             except Exception as exc:  # noqa: BLE001
                 log.error("piper 합성 실패 → say 폴백: %s", exc)
+        if self.engine == "matcha" and self._matcha is not None:
+            try:
+                pcm = self._matcha_synth(text)
+                if pcm:
+                    return pcm
+                log.warning("matcha 빈 결과 → say 폴백")
+            except Exception as exc:  # noqa: BLE001
+                log.error("matcha 합성 실패 → say 폴백: %s", exc)
         # 폴백 결과는 **캐시하지 않는다**(위 자체에서 return 하지 않는 이유).
         # say 음성이 캐시에 들어가면 이후 짧은 응답이 영원히 다른 목소리로 나간다(실측).
         log.warning("TTS 폴백(say) — 페르소나 음색과 다름: %s", text[:24])

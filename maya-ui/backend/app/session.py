@@ -43,6 +43,11 @@ except Exception:  # noqa: BLE001
 
 log = logging.getLogger(__name__)
 
+# 연결된 세션 레지스트리 — decision.log 를 모든 세션(/decisions 화면 포함)에 전파한다.
+# 세션은 자기 소켓으로만 송출하므로, 관측 화면이 다른 세션의 결정을 보려면 필요하다.
+# Session 은 @dataclass(eq=True) 라 unhashable → id 기반 dict 로 둔다.
+_ACTIVE_SESSIONS: "dict[str, Session]" = {}
+
 #: 페르소나(prompt + voice) 를 매 세션에 새로 읽는다 — 운영 중에 `MAYA_PERSONA` 를
 #: 바꾸면 다음 대화부터 적용된다(재시작 없이 프롬프트 실험 가능).
 from .persona import Persona, load_persona, pace_policy  # noqa: E402
@@ -210,6 +215,7 @@ class Session:
         self.id = self.id or str(uuid.uuid4())
         if self.transcript is None:
             self.transcript = TranscriptStore(self.id)
+        _ACTIVE_SESSIONS[self.id] = self
         self._sender_task = asyncio.create_task(self._sender())
         # 2026-11-25 — persona 메타데이터(id/name/pace)를 페이로드에 실어 보낸다.
         # 2026-11-26 — 음성 메뉴 호환을 위해 helper 가 tts_provider/voice/url +
@@ -233,6 +239,22 @@ class Session:
     async def _sendq(self, msg: WSMessage) -> None:
         """큐 기반 송신. 직접 ws.send_json 호출 금지."""
         await self._send_q.put(msg)
+
+    async def _broadcast_decision(self, payload: dict[str, Any]) -> None:
+        """decision.log 를 **모든 연결된 세션**에 전파.
+
+        발화는 / 화면에서 일어나지만 관측은 /decisions 화면에서 한다.
+        세션 로컬 송신만 하면 /decisions 는 자기 세션에서 발화할 때만
+        로그를 받아 화면이 영원히 비어 있다(2026-11-27 실측).
+        자기 자신은 _sendq 로 보내고, 나머지에는 _send_q 에 직접 넣는다.
+        """
+        for sess in list(_ACTIVE_SESSIONS.values()):
+            if sess is self:
+                continue
+            sess._send_q.put_nowait(WSMessage(
+                type=ServerMsgType.DECISION_LOG.value, payload=dict(payload)))
+        await self._sendq(WSMessage(
+            type=ServerMsgType.DECISION_LOG.value, payload=dict(payload)))
 
     async def _send_textq(self, type_: str, **payload: Any) -> None:
         await self._send_q.put(WSMessage(type=type_, payload=payload))
@@ -297,6 +319,7 @@ class Session:
 
     async def end(self) -> None:
         self.closed = True
+        _ACTIVE_SESSIONS.pop(self.id, None)
         # 2026-11-25 — 통화 종료를 IDLE 보다 명확한 신호(ENDED)로 송출.
         # 송신 루프가 아직 살아있을 때만 시도한다(None 신호 후에 enqueue 해도 안 나감).
         try:
@@ -434,9 +457,7 @@ class Session:
                         "score": 1.0,
                         "source": hit_source,
                     }]
-                await self._sendq(WSMessage(
-                    type=ServerMsgType.DECISION_LOG.value,
-                    payload={
+                await self._broadcast_decision({
                         "text": text,
                         "route_id": hit.route.id,
                         "source": hit_source,
@@ -454,14 +475,12 @@ class Session:
                             } for c in all_scores
                         ],
                         "ts": time.time(),
-                    }))
+                    })
                 await self._send_route(hit, start=time.monotonic())
                 return
             # abstained — 결정 로그만 남기고 자유 대화로 계속.
             if dbg.get("laya_abstained"):
-                await self._sendq(WSMessage(
-                    type=ServerMsgType.DECISION_LOG.value,
-                    payload={
+                await self._broadcast_decision({
                         "text": text,
                         "route_id": None,
                         "source": dbg.get("laya_source"),
@@ -478,7 +497,7 @@ class Session:
                             } for c in (dbg.get("laya_candidates") or [])
                         ],
                         "ts": time.time(),
-                    }))
+                    })
 
         buf: list[str] = []
         start = time.monotonic()

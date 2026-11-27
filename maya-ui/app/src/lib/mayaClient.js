@@ -110,11 +110,15 @@ export class MayaClient {
       case "stt.final":
         this.hooks.onFinalSTT?.(msg.text ?? "");
         break;
+      // 백엔드 protocol.py: ASSISTANT_DELTA="assistant.delta", ASSISTANT_FINAL="assistant.final".
+      // 예전에는 chat.partial / chat.final 만 처리해서 LLM 응답이 UI 에 전혀 안 보였다.
+      case "assistant.delta":
       case "chat.partial":
-        this.hooks.onAssistantDelta?.(msg.id, msg.text ?? "");
+        this.hooks.onAssistantDelta?.(msg.id ?? "", msg.text ?? "");
         break;
+      case "assistant.final":
       case "chat.final":
-        this.hooks.onAssistantFinal?.(msg.id, msg.text ?? "");
+        this.hooks.onAssistantFinal?.(msg.id ?? "", msg.text ?? "");
         break;
       case "audio.out":
         // base64 → ArrayBuffer
@@ -129,8 +133,26 @@ export class MayaClient {
       case "audio.level":
         this.hooks.onLevel?.(msg.rms ?? 0, msg.peak ?? 0);
         break;
+      // 백엔드 Phase 송출 타입: PHASE = "phase" (payload.phase).
+      // "session.state" 는 백엔드에 없어서 연결 점이 영원히 안 바뀌었다.
+      case "phase":
       case "session.state":
-        this.hooks.onPhase?.(msg.phase);
+        this.hooks.onPhase?.(msg.phase ?? msg.payload?.phase);
+        break;
+      // 라우팅 결정 로그 — `/decisions` 화면이 구독한다.
+      case "decision.log":
+        this.hooks.onDecision?.({
+          ts: msg.ts,
+          text: msg.text ?? "",
+          route_id: msg.route_id ?? null,
+          source: msg.source ?? "",
+          score: typeof msg.score === "number" ? msg.score : null,
+          threshold: typeof msg.threshold === "number" ? msg.threshold : null,
+          abstained: !!msg.abstained,
+          rule_hit: !!msg.rule_hit,
+          laya_hit: !!msg.laya_hit,
+          all_scores: Array.isArray(msg.all_scores) ? msg.all_scores : [],
+        });
         break;
       case "error":
         this.hooks.onError?.(msg.code ?? "error", msg.message ?? "");

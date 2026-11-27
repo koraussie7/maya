@@ -13,6 +13,7 @@ Lyra 진입점은 명시적으로 `synthesize_lyra()` 만 추가한다.
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import subprocess
 import sys
@@ -94,12 +95,28 @@ def _get_tts() -> Optional[object]:
         return None
     if _TTS_INSTANCE is None:
         try:
+            # MAYA_TTS_PROVIDER(백엔드 설정) 를 LocalTTS 의 TTS_ENGINE 으로 넘긴다.
+            # 두 이름이 다르면 지정이 무시되고 tts_local 기본값(voxcpm-api 원격)으로
+            # 떨어져 첫 턴이 16~46초 걸린다(실측 2026-11-27).
+            _prov = (os.environ.get("MAYA_TTS_PROVIDER", "") or "").strip().lower()
+            _engine = {
+                "piper": "piper",
+                "pocket": "pocket",
+                "voxcpm": "voxcpm-api",
+                "voxcpm-api": "voxcpm-api",
+                "local": "voxcpm_local",
+                "lyra": "voxcpm-api",
+            }.get(_prov, "")
+            _kw = {"engine": _engine} if _engine else {}
             ref = _resolve_env_ref_wav()
             if ref:
-                _TTS_INSTANCE = _LocalTTSClass(reference_wav=ref)
+                _TTS_INSTANCE = _LocalTTSClass(reference_wav=ref, **_kw)
                 log.info("TTS 화자 잠금: MAYA_TTS_REF → %s", ref)
             else:
-                _TTS_INSTANCE = _LocalTTSClass()
+                _TTS_INSTANCE = _LocalTTSClass(**_kw)
+            log.info("TTS 엔진 선택: MAYA_TTS_PROVIDER=%r → engine=%r (실제=%s)",
+                     _prov or None, _engine or "auto",
+                     getattr(_TTS_INSTANCE, "engine", "?"))
         except Exception as exc:  # noqa: BLE001
             log.exception("LocalTTS() init failed: %s", exc)
             return None
@@ -167,7 +184,7 @@ def say_fallback(text: str) -> bool:
 # 즉 PCM16 mono (sr=44100 Hz) WAV 바이트열 — `tts_local` 의 16kHz 와는 다르다.
 # 다운스트림이 형식을 가정하는 경우 호출자에서 리샘플링 책임을 진다.
 
-import os  # noqa: E402  (Lyra 전용, 위에 기존 import 와 충돌 없음)
+import os  # noqa: F811  (파일 상단에서 이미 import — Lyra 섹션 하위호환 유지)
 
 _MAYA_TTS_LYRA_FLAG = "MAYA_TTS_LYRA"  # "1" 일 때만 활성화
 _MAYA_TTS_LYRA_VOICE = "MAYA_TTS_LYRA_VOICE"  # 보이스 스타일 이름 (기본 F1)
