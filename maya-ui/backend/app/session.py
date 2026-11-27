@@ -508,7 +508,10 @@ class Session:
         splitter = SentenceSplitter(
             min_chars=int(os.environ.get("MAYA_TTS_MIN_CHARS", "4")))
         tts_q: asyncio.Queue[tuple[int, str] | None] = asyncio.Queue()
-        tts_stats = {"n": 0, "first_at": 0.0, "bytes": 0, "empty": 0, "next_seq": 0}
+        # next_seq 는 **1부터** 시작한다. seq_counter 도 1부터 증가하므로
+        # 0 으로 두면 어떤 유닛도 자기 차례가 되지 않아 300초 타임아웃만 반복하고
+        # 오디오가 한 번도 나가지 않는다(2026-11-27 실측: tts n=0, UI 무음).
+        tts_stats = {"n": 0, "first_at": 0.0, "bytes": 0, "empty": 0, "next_seq": 1}
         # ── TTS 병렬화 ────────────────────────────────────────────────
         # 유닛이 순차 합성되면 4문장이면 17+5+6+12=40s 이다(실측).
         # 워커를 N개 띄워 **합성은 병렬**, **송출은 순서대로** 한다.
@@ -617,13 +620,11 @@ class Session:
                                             payload={"phase": Phase.SPEAKING.value}))
             t0 = time.monotonic()
             try:
-                # synthesize() 는 piper **서브프로세스/원격 HTTP** 를 동기로 처리한다.
-                # 이벤트 루프 안에서 await 하면 다른 asyncio 태스크가 통째로 멈추고,
-                # 종료 신호(None)를 넣어주는 코드조차 돌지 못해 턴이 영구 정지한다
-                # (2026-11-27 실측: abstain 경로에서 gather 가 600초 대기).
-                # -> 별도 스레드로 넘긴다.
-                audio = await asyncio.to_thread(
-                    synthesize,
+                # synthesize() 는 async 이고, 내부에서 LocalTTS 의 **동기 블로킹**
+                # 호출을 asyncio.to_thread 로 넘긴다. 여기서는 그대로 await 한다.
+                # (한때 이 자리에서 to_thread(synthesize, …) 를 썼는데, 그러면
+                #  코루틴 객체를 받아 await 없이 버려져 음성이 0B 가 됐다 — 2026-11-27)
+                audio = await synthesize(
                     unit,
                     self.persona.voice_ref_wav if self.persona else "",
                     self.persona.voice_prompt_text if self.persona else "",

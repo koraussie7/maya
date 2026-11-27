@@ -12,6 +12,7 @@ Lyra 진입점은 명시적으로 `synthesize_lyra()` 만 추가한다.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import shutil
@@ -154,12 +155,20 @@ async def synthesize(text: str, ref_wav: str = "", prompt_text: str = "") -> byt
             kw["ref_wav"] = ref_wav
         if prompt_text:
             kw["prompt_text"] = prompt_text
-        try:
-            out = tts.synthesize(text, **kw) if kw else tts.synthesize(text)
-        except TypeError:
-            # 구버전 LocalTTS 시그니처(synthesize(text))만 받는 경우
-            log.warning("LocalTTS 가 ref_wav 를 받지 않음 → 기본 음색으로 합성")
-            out = tts.synthesize(text)
+
+        # LocalTTS.synthesize() 는 **동기 블로킹**이다(piper 서브프로세스 /
+        # 원격 HTTP). 이벤트 루프에서 직접 부르면 다른 asyncio 태스크가
+        # 통째로 멈춘다(2026-11-27 실측: TTS 종료 신호를 넣는 코드조차
+        # 실행되지 못해 턴이 600초 매달렸다). 그래서 스레드로 넘긴다.
+        def _run() -> bytes:
+            try:
+                return tts.synthesize(text, **kw) if kw else tts.synthesize(text)
+            except TypeError:
+                # 구버전 LocalTTS 시그니처(synthesize(text))만 받는 경우
+                log.warning("LocalTTS 가 ref_wav 를 받지 않음 → 기본 음색으로 합성")
+                return tts.synthesize(text)
+
+        out = await asyncio.to_thread(_run)
         if not out:
             return b""
         engine = getattr(tts, "engine", "?")

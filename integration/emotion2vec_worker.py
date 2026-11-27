@@ -40,12 +40,16 @@ logging.basicConfig(
 )
 
 # ─── 환경변수 설정 ──────────────────────────────────────────────────
-# emotion2vec 모델 ID 후보 (FunASR hub 에 등록된 순서대로 시도)
+# emotion2vec 모델 ID 후보 (먼저 시도할 순서)
+# 2026-11-27 실측: `iic/*` 는 HF 에서 401(미등록/gated) 이고 funasr hub id 였다.
+# 공개 배포는 `emotion2vec/*` 조직 아래에 있다(HTTP 200 확인).
 _DEFAULT_MODEL_IDS = [
+    "emotion2vec/emotion2vec_plus_base",
+    "emotion2vec/emotion2vec_base",
+    "emotion2vec/emotion2vec_plus_large",
+    # funasr/model-scope id — hf 미러가 있는 환경에서만 성공
     "iic/emotion2vec_base_plus",
     "iic/emotion2vec_base",
-    "ddlBoJack/emotion2vec_base_plus",
-    "ddlBoJack/emotion2vec_base",
 ]
 MODEL_ID = os.environ.get(
     "EMOTION2VEC_MODEL_ID", _DEFAULT_MODEL_IDS[0]
