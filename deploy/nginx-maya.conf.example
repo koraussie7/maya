@@ -1,0 +1,37 @@
+# Maya 백엔드 리버스 프록시 예시
+#
+# 배포 구성:
+#   https://<host>/maya/      → 정적 UI (maya-ui/app/build)
+#   https://<host>/maya/ws    → WS  → 127.0.0.1:8788/ws     (Maya 대화)
+#   https://<host>/api/       → HTTP → 127.0.0.1:8788/api/   (REST 브리지)
+#
+# /api/ 를 프록시하지 않으면 정적 서버가 index.html 을 돌려주고,
+# 클라이언트는 "Unexpected token '<', \"<!doctype html>\"" 로 실패한다.
+
+# ── 1. WebSocket (Maya 음성 대화) ───────────────────────────
+location /maya/ws {
+    proxy_pass         http://127.0.0.1:8788/ws;
+    proxy_http_version 1.1;
+    proxy_set_header   Upgrade $http_upgrade;
+    proxy_set_header   Connection "upgrade";
+    proxy_set_header   Host $host;
+    proxy_read_timeout 3600s;     # 대화가 길어져도 끊기지 않게
+    proxy_send_timeout 3600s;
+}
+
+# ── 2. REST 브리지 (digital-twin UI: /api/ask, /api/speech …) ─
+location /api/ {
+    proxy_pass         http://127.0.0.1:8788;
+    proxy_http_version 1.1;
+    proxy_set_header   Host $host;
+    proxy_set_header   X-Real-IP $remote_addr;
+    proxy_buffering    off;        # /api/ask/stream 은 NDJSON 스트림
+    proxy_read_timeout 120s;
+    client_max_body_size 8m;
+}
+
+# ── 3. 정적 UI (SPA fallback) ──────────────────────────────
+location /maya/ {
+    alias /srv/maya/build/;
+    try_files $uri $uri/ /maya/index.html;
+}

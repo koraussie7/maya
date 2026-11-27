@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import SETTINGS
 from .knowledge_router import router as knowledge_router  # Agent 1: include_router 1줄
+from .rest_chat import router as rest_chat_router  # REST 대화 브리지 (/api/chat)
 from .session import handle_client
 
 logging.basicConfig(
@@ -28,6 +29,11 @@ app.add_middleware(
 
 # Agent 1: include_router 1줄 — /knowledge/* 엔드포인트 등록
 app.include_router(knowledge_router)
+
+# REST 대화 브리지 — WebSocket 이 없는 UI(digital-twin 등)가 /api/chat 으로
+# 대화할 수 있게 한다. 이 경로가 없으면 정적 서버 fallback 이 index.html 을
+# 돌려주고 클라이언트는 "Unexpected token '<'" 로 실패한다.
+app.include_router(rest_chat_router)
 
 
 @app.get("/healthz")
