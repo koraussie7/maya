@@ -63,7 +63,12 @@ def main() -> int:
     try:
         req = json.dumps({"wav_path": str(wav)}, ensure_ascii=False).encode("utf-8")
         assert proc.stdin is not None
-        proc.stdin.write(struct.pack(">I", len(req)) + req)
+        # 워커는 **4바이트 길이만 먼저** read(4) 로 읽고 그 다음 n 바이트를 읽는다.
+        # 길이와 페이로드를 한 번에 쓰면 파이프 버퍼(64KB)에 걸려 서로 기다리는
+        # 교착이 생긴다(2026-11-27 실측: CPU 0%, 무한 대기).
+        proc.stdin.write(struct.pack(">I", len(req)))
+        proc.stdin.flush()
+        proc.stdin.write(req)
         proc.stdin.flush()
 
         assert proc.stdout is not None
@@ -86,8 +91,16 @@ def main() -> int:
 
         payload = json.loads(payload_raw.decode("utf-8"))
 
-        proc.stdin.close()
-        proc.wait(timeout=5)
+        # 워커는 루프라서 stdin 이 닫혀야 종료된다. 먼저 닫고 짧게 기다린다.
+        # (모델 로드가 끝나지 않은 상태에서 wait 를 길게 잡으면 무한 대기처럼 보임)
+        try:
+            proc.stdin.close()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
 
         if status != 0:
             print(f"워커 오류: {payload.get('error')}", file=sys.stderr)
