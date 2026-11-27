@@ -17,7 +17,11 @@ const config = {
     // 루트만 정적 생성하고 나머지는 fallback(index.html)에서 SPA 라우팅한다.
     prerender: {
       entries: ["/"],
+      // 페이지 내 링크를 크롤링하지 않는다 — 라우트 대부분이 클라이언트 전용
+      // (/decisions, /knowledge/**)이라 크롤링하면 미생성 라우트에서 실패한다.
+      crawl: false,
       handleHttpError: "warn",
+      handleUnseenRoutes: "ignore",
     },
   },
 };

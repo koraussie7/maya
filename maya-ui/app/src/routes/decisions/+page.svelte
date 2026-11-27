@@ -104,7 +104,15 @@
         client?.startSession({});
       })
       .catch((e) => {
-        lastError = String(e?.message ?? e);
+        // WebSocket error 이벤트는 Error 가 아니라 Event 라서
+        // e.message 가 없다. 그대로 String() 하면 "[object Event]".
+        const msg =
+          typeof e?.message === "string" && e.message
+            ? e.message
+            : e?.code != null
+              ? `연결 실패 (code ${e.code})`
+              : "백엔드에 연결하지 못했습니다";
+        lastError = msg;
       });
 
     // 연결 상태 폴링 (1초) — MayaClient.connected getter

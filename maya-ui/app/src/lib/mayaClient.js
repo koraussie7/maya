@@ -63,7 +63,14 @@ export class MayaClient {
           this.ws = null;
         });
         ws.addEventListener("error", (e) => {
-          this.hooks.onError?.("ws.error", String(e?.message ?? e));
+          // WebSocket 의 error 이벤트는 Error 가 아니라 Event 다.
+          // 그대로 String() 하면 "[object Event]" 가 UI 에 찍힌다.
+          const msg = e instanceof Error
+            ? e.message
+            : typeof (/** @type {any} */ (e))?.message === "string"
+              ? /** @type {any} */ (e).message
+              : `websocket error (${this.url})`;
+          this.hooks.onError?.("ws.error", msg);
           reject(e);
         });
       } catch (e) {

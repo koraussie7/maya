@@ -8,6 +8,18 @@
 const FALLBACK_WS = "ws://localhost:8765/ws";
 const FALLBACK_HTTP = "http://localhost:8765";
 
+import { base } from "$app/paths";
+
+/**
+ * SvelteKit 의 `base`("/maya"). 빌드에서 상수로 치환되므로
+ * `/maya/decisions` 같은 하위 라우트에서도 항상 `/maya` 를 준다.
+ * (import.meta.env.BASE_URL 은 빌드에서 "./" 로 치환될 수 있어 못 믿는다 — 실측)
+ * @returns {string} trailing slash 없는 base (루트면 "")
+ */
+function kitBase() {
+  return (base || "").replace(/\/$/, "");
+}
+
 function pick(...vals) {
   for (const v of vals)
     if (v && typeof v === "string" && v.length > 0) return v;
@@ -24,16 +36,12 @@ function pick(...vals) {
  * 로컬 개발에서 8765 를 직접 쓰려면 `VITE_MAYA_WS_URL` 로 덮으면 된다.
  */
 function sameOriginWs() {
-  // 2026-11-24 실측: SvelteKit 의 `base` 는 **빌드 시점에** `import.meta.env.BASE_URL`
-  // 에 들어가지 않는다(`""` 로 나온다). 그대로 쓰면 `wss://host./ws` 처럼 host 뒤에
-  // 점이 붙은 주소가 만들어져 핸드신이 200 으로 깨진다.
-  // → base 는 **현재 페이지 경로**에서 얻는다: `/maya/` → `/maya/ws`.
-  const path = (typeof location !== "undefined" ? location.pathname : "/")
-    .replace(/\/(index\.html)?$/, "")
-    .replace(/\/$/, "");
-  const base = path || (import.meta.env?.BASE_URL || "").replace(/\/$/, "");
+  // 2026-11-24 실측: SvelteKit 의 `base` 는 빌드 시점에 `import.meta.env.BASE_URL`
+  // 로 들어가지 않는다(빌드 결과에서 "./" 로 치환됨).
+  // → `$app/paths` 의 `base` 를 쓴다. 이건 "/maya" 로 치환되므로
+  //   `/maya/decisions` 같은 하위 라우트에서도 정확히 `/maya` 를 준다.
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  return `${proto}://${location.host}${base}/ws`;
+  return `${proto}://${location.host}${kitBase()}/ws`;
 }
 
 function sameOriginHttp() {
