@@ -102,11 +102,23 @@ def _get_tts() -> Optional[object]:
             _engine = {
                 "piper": "piper",
                 "pocket": "pocket",
+                # voxcpm 를 직접 지정해도 tts_local 안의 게이트를 지나야 한다:
+                # 게이트가 닫혀 있으면(옵트인/토큰 없음) piper 로 떨어진다.
                 "voxcpm": "voxcpm-api",
                 "voxcpm-api": "voxcpm-api",
                 "local": "voxcpm_local",
                 "lyra": "voxcpm-api",
             }.get(_prov, "")
+            if _engine in ("voxcpm-api", "voxcpm_local"):
+                _gate = (os.environ.get("MAYA_VOXCPM_ACTIVE", "").strip() == "1"
+                         and bool(os.environ.get("MAYA_VOXCPM_HF_TOKEN")
+                                  or os.environ.get("HF_TOKEN")))
+                if not _gate:
+                    log.warning(
+                        "MAYA_TTS_PROVIDER=%s 이지만 MAYA_VOXCPM_ACTIVE=1 / HF 토큰이 "
+                        "없어 piper 로 대체합니다 (voxcpm 은 원격이라 콜드스타트 "
+                        "16~46초가 걸립니다)", _prov)
+                    _engine = "piper"
             _kw = {"engine": _engine} if _engine else {}
             ref = _resolve_env_ref_wav()
             if ref:

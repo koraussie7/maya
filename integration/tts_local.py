@@ -257,24 +257,51 @@ class LocalTTS:
                 log.error("TTS_ENGINE=matcha 초기화 실패 → say 폴백")
                 self.engine = "say"
         else:  # auto
-            # 1) voxcpm-api 시도
-            voxcpm_kind = os.environ.get("VOXCPM_ENGINE", "voxcpm-api").lower()
-            voxcpm_worker = (VOXCPM_API_WORKER
-                             if voxcpm_kind != "voxcpm_local"
-                             else VOXCPM_LOCAL_WORKER)
-            if self._init_voxcpm(voxcpm_worker):
-                self.engine = "voxcpm-api" if voxcpm_kind != "voxcpm_local" else "voxcpm-local"
-            # 2) matcha 시도 (voxcpm 실패 시, 모델이 있으면)
-            elif DEFAULT_MATCHA_MODEL and self._init_matcha():
-                log.warning("voxcpm 초기화 실패 → matcha 폴백")
-                self.engine = "matcha"
-            # 3) piper 시도 (voxcpm/matcha 실패 시)
-            elif self._init_piper():
-                log.warning("voxcpm 초기화 실패 → piper 폴백")
-                self.engine = "piper"
-            # 3) say
-            else:
-                self.engine = "say"
+            # ── voxcpm 게이트 (2026-11-27) ─────────────────────────────────
+            # voxcpm-api 는 **원격 HF Space** 다. 토큰이 없거나 Space 가 자면
+            # 콜드스타트 16~46초가 걸리고, piper(0.01s)를 두고 먼저 시도하면
+            # 첫 턴이 통째로 느려진다(실측). 그래서 auto 체인의 1순위에서 빼고,
+            # 아래 **모든 조건을 만족할 때만** 켠다:
+            #   MAYA_VOXCPM_ACTIVE=1            (명시적 옵트인, 필수)
+            #   MAYA_VOXCPM_HF_TOKEN / HF_TOKEN (원격 호출 인증, 필수)
+            #   reference_wav 가 준비됨         (클론할 음성이 있을 때만 의미 있음)
+            # piper 가 실제로 실패했을 때만 도달하는 최후 수단으로도 쓰인다.
+            _vc_active = os.environ.get("MAYA_VOXCPM_ACTIVE", "").strip() == "1"
+            _vc_token = bool(os.environ.get("MAYA_VOXCPM_HF_TOKEN")
+                             or os.environ.get("HF_TOKEN"))
+            _vc_ready = _vc_active and _vc_token
+            if _vc_ready:
+                voxcpm_kind = os.environ.get("VOXCPM_ENGINE", "voxcpm-api").lower()
+                voxcpm_worker = (VOXCPM_API_WORKER
+                                 if voxcpm_kind != "voxcpm_local"
+                                 else VOXCPM_LOCAL_WORKER)
+                if self._init_voxcpm(voxcpm_worker):
+                    self.engine = ("voxcpm-api" if voxcpm_kind != "voxcpm_local"
+                                   else "voxcpm-local")
+                    log.info("TTS auto: voxcpm 활성 (opt-in + token + ref)")
+                else:
+                    log.warning("TTS auto: voxcpm 게이트 열렸지만 초기화 실패 → piper")
+            elif _vc_active and not _vc_token:
+                log.info("TTS auto: MAYA_VOXCPM_ACTIVE=1 이지만 HF 토큰이 없어 비활성")
+            # 1) piper — 로컬, 0.01s 합성. 실시간 기본.
+            if not getattr(self, "engine", None):
+                if self._init_piper():
+                    self.engine = "piper"
+                # 2) matcha (모델이 있으면)
+                elif DEFAULT_MATCHA_MODEL and self._init_matcha():
+                    log.warning("piper 초기화 실패 → matcha 폴백")
+                    self.engine = "matcha"
+                # 3) voxcpm — piper 가 실패했고 게이트가 열렸을 때만
+                elif _vc_ready:
+                    log.warning("piper 실패 → voxcpm 폴백 (마지막 수단)")
+                    if self._init_voxcpm(VOXCPM_API_WORKER):
+                        self.engine = "voxcpm-api"
+                    else:
+                        self.engine = "say"
+                # 4) say (macOS 내장)
+                else:
+                    log.error("TTS 엔진 없음 → say 폴백")
+                    self.engine = "say"
         # piper 를 실시간 기본으로 두고, 클론은 **고정 상용구만** 쓰는 모드
         if want == "hybrid":
             self.engine = "piper" if self._init_piper() else "say"

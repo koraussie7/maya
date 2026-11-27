@@ -27,8 +27,11 @@ class Settings:
     hf_token: str
     log_level: str
     # ── Pocket TTS (Hugging Face Space adapter) ────────────────────────
-    # `MAYA_TTS_PROVIDER=pocket` 으로 활성. 기본은 piper (로컬) + voxcpm (원격 폴백).
-    tts_provider: str = "piper"  # "piper" | "voxcpm" | "pocket"
+    # `MAYA_TTS_PROVIDER=pocket` 으로 활성. 기본은 piper (로컬).
+    # voxcpm 은 기본 **꺼짐** — 원격이라 콜드스타트 16~46초. 켜려면
+    # MAYA_VOXCPM_ACTIVE=1 + HF 토큰 + reference_wav 가 모두 필요하다.
+    tts_provider: str = "piper"  # "piper" | "pocket" | "voxcpm"
+    voxcpm_active: bool = False  # MAYA_VOXCPM_ACTIVE=1 이면 True
     tts_voice: str = "default"   # pocket: default | male | clone
     pocket_tts_url: str = "https://pupunpu-jev-interaction.hf.space/gradio_api/call/pocket_tts"
     pocket_tts_timeout_s: float = 30.0
@@ -111,6 +114,11 @@ class Settings:
                 "MAYA_TTS_PROVIDER",
                 "pocket" if os.environ.get("MAYA_TTS_POCKET", "").strip() == "1" else "piper",
             ).strip().lower(),
+            # ── voxcpm 게이트 (2026-11-27) ────────────────────────────────
+            # voxcpm 은 원격 HF Space 라 콜드스타트 16~46초(실측). 로컬 piper 는
+            # 0.01초. 그래서 기본은 **꺼짐**이고, 아래 세 조건이 모두 참일 때만
+            # 쓴다: MAYA_VOXCPM_ACTIVE=1 + HF 토큰 + 참조 음성(reference_wav).
+            voxcpm_active=os.environ.get("MAYA_VOXCPM_ACTIVE", "0").strip() == "1",
             tts_voice=os.environ.get("MAYA_TTS_VOICE", "default").strip().lower(),
             pocket_tts_url=os.environ.get(
                 "MAYA_POCKET_TTS_URL",

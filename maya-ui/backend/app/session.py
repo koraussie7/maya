@@ -574,11 +574,12 @@ class Session:
             except Exception:  # noqa: BLE001
                 pass
 
-        # TTS 는 문장별로 이미 끝났다. 큐 종료를 기다려 통계만 남긴다.
+        # TTS 는 문장별로 이미 끝났다. 워커를 확실히 종료시키고 통계만 남긴다.
+        # (예전: wait_for(gather, 600) — 큐가 막히면 턴이 600초 매달렸다)
         try:
-            await asyncio.wait_for(asyncio.gather(*tts_tasks), timeout=600)
-        except Exception:  # noqa: BLE001
-            pass
+            await self._drain_tts(tts_tasks, tts_q, tts_stats)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("session=%s tts 정리 실패: %s", self.id, exc)
         if not tts_stats["n"]:
             await self._sendq(WSMessage(
                 type=ServerMsgType.ERROR.value,
@@ -616,10 +617,16 @@ class Session:
                                             payload={"phase": Phase.SPEAKING.value}))
             t0 = time.monotonic()
             try:
-                audio = await synthesize(
+                # synthesize() 는 piper **서브프로세스/원격 HTTP** 를 동기로 처리한다.
+                # 이벤트 루프 안에서 await 하면 다른 asyncio 태스크가 통째로 멈추고,
+                # 종료 신호(None)를 넣어주는 코드조차 돌지 못해 턴이 영구 정지한다
+                # (2026-11-27 실측: abstain 경로에서 gather 가 600초 대기).
+                # -> 별도 스레드로 넘긴다.
+                audio = await asyncio.to_thread(
+                    synthesize,
                     unit,
-                    ref_wav=self.persona.voice_ref_wav if self.persona else "",
-                    prompt_text=self.persona.voice_prompt_text if self.persona else "",
+                    self.persona.voice_ref_wav if self.persona else "",
+                    self.persona.voice_prompt_text if self.persona else "",
                 )
             except Exception as exc:  # noqa: BLE001
                 log.warning("session=%s tts 실패(%.20s…): %s", self.id, unit, exc)
@@ -652,6 +659,37 @@ class Session:
             log.info("session=%s tts unit %d %.2fs → %dB (%.1fs elapsed)",
                      self.id, seq, dt, len(audio), time.monotonic() - start)
             _TtsSeq.mark(stats, sent, seq)
+
+    async def _drain_tts(
+        self,
+        tts_tasks: "list[asyncio.Task[None]]",
+        tts_q: "asyncio.Queue[tuple[int, str] | None]",
+        stats: dict,
+    ) -> None:
+        """TTS 워커들을 **확실히 종료**시키고 남은 task 를 조인한다.
+
+        예전에는 `wait_for(gather(*tts_tasks), timeout=600)` 만 썼다. 종료 신호
+        (None)를 넣기 전에 예외가 나거나 전송 순서 대기(next_seq)가 막히면
+        gather 가 600초 동안 매달려 턴이 끝나지 않았다(테스트 영구 정지 — 2026-11-27 실측).
+        None 을 워커 수만큼 넣고, 짧은 유예 후 안 끝난 task 는 취소한다.
+        """
+        for _ in tts_tasks:
+            try:
+                tts_q.put_nowait(None)
+            except Exception:  # noqa: BLE001
+                pass
+        if not tts_tasks:
+            return
+        _done, pending = await asyncio.wait(tts_tasks, timeout=20)
+        if pending:
+            log.warning("session=%s tts 워커 %d개가 20초 내 종료하지 않아 취소",
+                        self.id, len(pending))
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
+        missing = set(stats.get("issued", set())) - set(stats.get("done", set()))
+        if missing:
+            log.warning("session=%s tts 미송출 유닛: %s", self.id, sorted(missing)[:5])
 
 
 async def handle_client(ws: WebSocket) -> None:
