@@ -48,6 +48,46 @@ shasum -a 256 maya/models/tts/piper/ko_KR-kss-medium.onnx
 # 4c734a734ae97d708ef94f147ad920d92b625a8a195b2c045ab3064c29ee0281
 ```
 
+## 환경 설정 (LLM / TTS)
+
+키나 엔드포인트는 코드에 넣지 않고 **`.env`** 로 넣습니다. `.env` 는 `.gitignore` 에 있어 커밋되지 않습니다.
+
+```bash
+cp .env.example .env
+# .env 를 열어 OPENAI_API_KEY 를 채운다
+./scripts/run_maya_backend.sh
+```
+
+`run_maya_backend.sh` 가 repo 루트의 `.env` 를 읽되, **이미 셸에 export 된 값이 우선**합니다.
+
+### 대화 LLM 고르기
+
+| `MAYA_LLM_PROVIDER` | 엔드포인트 기본값 | 특징 |
+| --- | --- | --- |
+| `cloud` | `https://openrouter.ai/api/v1` | 원격 API. **가장 빠름**(1~2초). 키 필요 |
+| `private` | `https://privseai.com/privseai/llm/v1` | 자체 게이트웨이 `auto/best-fast` |
+| `local` | `http://127.0.0.1:11434/v1` | Ollama. 키 불필요 |
+
+> 이 머신에서 Ollama 의 27B 모델은 CPU 로 **prefill 이 약 40초**입니다. 대화에는 원격을 권장합니다.
+> 로컬을 쓸 때는 `MAYA_LOCAL_LLM_MODEL` 을 비워 두면 설치된 모델을 자동 감지합니다.
+
+```bash
+# .env 예시 (OpenRouter)
+MAYA_LLM_PROVIDER=cloud
+OPENAI_BASE=https://openrouter.ai/api/v1
+OPENAI_MODEL=google/gemini-2.5-flash
+OPENAI_API_KEY=sk-or-...
+```
+
+### 응답 길이 제한
+
+로컬처럼 느린 모델은 토큰 예산으로 응답 시간을 제한할 수 있습니다.
+
+```bash
+MAYA_LLM_TPS=12              # 실측 생성 속도 (tok/s)
+MAYA_LLM_TURN_BUDGET_S=12    # 목표 응답 시간(초) → max_tokens 상한
+```
+
 ## 백엔드 실행
 
 ```bash

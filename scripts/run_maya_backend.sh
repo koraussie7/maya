@@ -6,6 +6,28 @@
 # 상대경로로 쓰면 `scripts/..` 가 이미 다른 디렉토리에 있어 실패한다(실측).
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# ── .env 로딩 ─────────────────────────────────────────
+# 키/엔드포인트를 코드에 넣지 않기 위해 repo 루트의 .env 를 읽는다.
+# 이미 셸에 export 된 값이 **우선**한다(set -a 로 export 하되, 기존 값을 덮지 않게
+# 읽은 뒤 export). .env 는 .gitignore 에 있어 커밋되지 않는다.
+if [ -f "$REPO_ROOT/.env" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in ''|'#'*) continue;; esac
+    key="${line%%=*}"
+    val="${line#*=}"
+    # 앞뒤 공백/따옴표 제거
+    key="$(printf '%s' "$key" | tr -d '[:space:]')"
+    val="${val%\"}"; val="${val#\"}"; val="${val%\'}"; val="${val#\'}"
+    [ -z "$key" ] && continue
+    # 셸에 이미 값이 있으면 그대로 둔다
+    eval "current=\${$key:-}"
+    if [ -z "$current" ]; then
+      export "$key=$val"
+    fi
+  done < "$REPO_ROOT/.env"
+fi
+
 cd "$REPO_ROOT/maya-ui/backend" || exit 1
 
 # ── 서버 ─────────────────────────────────────────────
@@ -17,6 +39,8 @@ export MAYA_LOG_LEVEL=INFO
 
 # ── 대화 LLM ─────────────────────────────────────────
 # cloud(OpenRouter) | private(자체 110 게이트웨이) | local(ollama)
+# 기본은 local 이지만 .env 에서 MAYA_LLM_PROVIDER=cloud + OPENAI_API_KEY 를 주면
+# 원격 모델을 쓴다(로컬 27B 는 CPU 에서 prefill 40초 — 2026-11-27 실측).
 export MAYA_LLM_PROVIDER="${MAYA_LLM_PROVIDER:-local}"
 export OPENAI_BASE="${OPENAI_BASE:-http://127.0.0.1:11434/v1}"
 export OPENAI_API_KEY="${OPENAI_API_KEY:-ollama}"
@@ -32,8 +56,10 @@ export MAYA_TRANSCRIPTS_DIR="${MAYA_TRANSCRIPTS_DIR:-$REPO_ROOT/maya/transcripts
 
 # ── 페르소나 / 음성 ──────────────────────────────────
 export MAYA_PERSONA="${MAYA_PERSONA:-lyra_vex}"      # lyra_vex_b = 여성(B)
-# TTS: voxcpm-api(클론) | piper | say | auto
-export TTS_ENGINE="${TTS_ENGINE:-voxcpm-api}"
+# TTS: piper(로컬) | voxcpm-api(원격 클론) | pocket | say
+# 기본은 piper — 원격 voxcpm 은 콜드스타트 16~46초(2026-11-27).
+# 클론 음성이 필요하면 MAYA_VOXCPM_ACTIVE=1 + HF 토큰을 .env 에 둔다.
+export TTS_ENGINE="${TTS_ENGINE:-piper}"
 # 살아있는 Space 는 `openbmb-voxcpm-demo`. `openbmb-voxcpm-tts` 는 응답하지 않는다(실측).
 export VOXCPM_API_URL="${VOXCPM_API_URL:-https://openbmb-voxcpm-demo.hf.space}"
 # 워커에 Space 이름을 넘기려면 이 값을 쓴다(비우면 URL 만 사용).

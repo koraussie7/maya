@@ -126,6 +126,24 @@ def _sensevoice_transcribe_pcm(pcm: bytes) -> str:
     return _get_sensevoice().transcribe(pcm)
 
 
+def warm_stt() -> bool:
+    """STT 워커/모델을 미리 띄워 둔다(첫 발화 지연 제거).
+
+    SenseVoice 워커가 있으면 그것만 올린다 — 워커 기동 + 모델 로드가
+    첫 전사에서 수 초를 먹기 때문. 블로킹 호출이므로 스레드에서 부를 것.
+    반환: 무엇이든 준비됐으면 True.
+    """
+    if sensevoice_available():
+        try:
+            got = _get_sensevoice()
+            if got.proc is not None and got.proc.poll() is None:
+                log.info("STT 예열 완료: SenseVoice %s", got.meta or "")
+                return True
+        except Exception as exc:  # noqa: BLE001
+            log.warning("STT 예열 실패: %s", exc)
+    return _WHISPER is not None
+
+
 _WHISPER = _try_load_whisper()
 
 

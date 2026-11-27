@@ -119,6 +119,36 @@ def _env(name: str, default: str = "") -> str:
     return os.environ.get(name, default)
 
 
+# 실제로 로컬에서 도는 모델을 선호한다. 채팅용(embed 모델 제외) 중 가장 작은 것부터.
+_MODEL_HINTS = ("exaone", "qwen", "gemma", "llama", "mistral")
+
+
+def _detect_ollama_model(base: str) -> str:
+    """Ollama `/api/tags` 에서 설치된 모델 이름을 고른다. 없으면 "".
+
+    base 가 OpenAI 호환(`.../v1`)이어도 태그 엔드포인트는 `/api/tags` 이다.
+    느리거나 막혀 있으면 기다리지 않고 빈 문자열(→ tier 0 생략).
+    """
+    try:
+        import urllib.request
+        root = base.rstrip("/")
+        if root.endswith("/v1"):
+            root = root[:-3]
+        with urllib.request.urlopen(root + "/api/tags", timeout=1.5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        names = [m.get("name", "") for m in (data.get("models") or [])]
+        names = [n for n in names if n and "embed" not in n.lower()]
+        if not names:
+            return ""
+        for hint in _MODEL_HINTS:
+            for n in names:
+                if hint in n.lower():
+                    return n
+        return names[0]
+    except Exception:  # noqa: BLE001 — 서버 없음/타임아웃/timeout/파싱 실패
+        return ""
+
+
 def build_tiers() -> list[Tier]:
     """환경변수에서 fallback 체인을 구성한다.
 
@@ -133,25 +163,32 @@ def build_tiers() -> list[Tier]:
     # Ollama create 로 등록한 이름 또는 llama.cpp 서버의 모델 슬러그.
     if _env("MAYA_LOCAL_LLM_DISABLED", "0") != "1":
         local_base = _env("MAYA_LOCAL_LLM_BASE", "http://127.0.0.1:11434/v1")
-        local_model = _env("MAYA_LOCAL_LLM_MODEL", "bonsai-ptq1-0-27b-uncensored")
+        # 기본 모델명을 하드코딩하지 않는다. 설치 안 된 이름이면 매 턴 404 로
+        # 실패하고 다음 tier 로 넘어가며 수 초를 버린다(2026-11-27 실측:
+        # bonsai-ptq1-0-27b-uncensored 미설치 → 첫 응답 4.59초 중 대부분이 재시도).
+        # 명시값(MAYA_LOCAL_LLM_MODEL) > Ollama 자동 감지 > 기본 이름 순.
+        local_model = _env("MAYA_LOCAL_LLM_MODEL", "") or _detect_ollama_model(local_base)
+        if not local_model:
+            log.info("로컬 LLM 모델을 찾지 못해 tier 0 을 건너뜁니다 (%s)", local_base)
         # 로컬 LLM의 첫 토큰 응답 한계. Ollama가 모델을 로드하거나
         # 답을 천천히 흘리면 이 시간 안에 첫 토큰이 안 오면 → 즉시 다음 tier.
         # 기본 8초 — 이 안에 답이 안 오면 사용자 체감은 '먹통' 이다.
         local_first_tok = float(_env("MAYA_LOCAL_LLM_FIRST_TOKEN_TIMEOUT_S", "8"))
-        tiers.append(Tier(
-            name=f"local-llm/{local_model}",
-            tier=0,
-            base=local_base,
-            model=local_model,
-            api_key="",
-            needs_key=False,                # 키 없음
-            skip_auth_header=True,          # Authorization 헤더 자체 생략
-            extra_payload={},               # Ollama 는 reasoning 모드 미사용
-            cost_hint="zero",
-            first_token_timeout_s=local_first_tok,
-            note=(f"로컬 uncensored · base={local_base} · model={local_model} "
-                  f"· TTFB≤{local_first_tok:.0f}s"),
-        ))
+        if local_model:
+            tiers.append(Tier(
+                name=f"local-llm/{local_model}",
+                tier=0,
+                base=local_base,
+                model=local_model,
+                api_key="",
+                needs_key=False,                # 키 없음
+                skip_auth_header=True,          # Authorization 헤더 자체 생략
+                extra_payload={},               # Ollama 는 reasoning 모드 미사용
+                cost_hint="zero",
+                first_token_timeout_s=local_first_tok,
+                note=(f"로컬 uncensored · base={local_base} · model={local_model} "
+                      f"· TTFB≤{local_first_tok:.0f}s"),
+            ))
 
     # Tier 1 — privseai 내부
     privseai_base = _env("MAYA_PRIVSEAI_BASE", "https://privseai.com/privseai/llm/v1")

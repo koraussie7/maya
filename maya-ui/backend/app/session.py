@@ -224,6 +224,14 @@ class Session:
                                     payload=self._tts_ready_payload()))
         await self._sendq(WSMessage(type=ServerMsgType.PHASE.value,
                                     payload={"phase": Phase.IDLE.value}))
+        # STT 워커 예열 — 첫 발화가 모델 로드를 기다리지 않게.
+        # 사용자가 말을 시작하기 전에 백그라운드로 모델을 올린다.
+        # 실패해도 세션은 정상 (transcribe 시점에 다시 시도).
+        try:
+            from .stt import warm_stt
+            asyncio.create_task(asyncio.to_thread(warm_stt))
+        except Exception:  # noqa: BLE001
+            pass
 
     async def _sender(self) -> None:
         """큐에 들어온 메시지를 순서대로 직렬 송신 — race condition 방지."""
@@ -531,6 +539,20 @@ class Session:
         # 정책 테이블은 persona.pace_policy() 에 집중되어 있다.
         _pace = self.persona.pace if self.persona else "normal"
         _max_tokens = int(pace_policy(_pace)["max_tokens"])
+        # ── 응답 시간 예산(2026-11-27) ────────────────────────────────
+        # 로컬 LLM 은 초당 9~15토큰이다. 384~560 토큰을 허용하면 30~60초가
+        # 걸려 "답이 안 오는" 것처럼 느껴진다. 목표 시간 안에 끝나는 토큰 수로
+        # 상한을 건다(문장 단위 스트리밍 TTS 라 잘려도 첫 문장들은 이미 재생됨).
+        #   MAYA_LLM_TPS=12        실측 생성 속도
+        #   MAYA_LLM_TURN_BUDGET_S=12  목표 응답 시간(초)
+        if os.environ.get("MAYA_LLM_TPS"):
+            _tps = max(1.0, float(os.environ.get("MAYA_LLM_TPS", "12")))
+            _budget_s = float(os.environ.get("MAYA_LLM_TURN_BUDGET_S", "12"))
+            _cap = max(48, int(_tps * _budget_s))
+            if _max_tokens > _cap:
+                log.info("session=%s max_tokens %d → %d (%.0f tok/s × %.0fs)",
+                         self.id, _max_tokens, _cap, _tps, _budget_s)
+                _max_tokens = _cap
         log.info("session=%s pace=%s max_tokens=%d", self.id, _pace, _max_tokens)
         # ── 컨텍스트 창(비용 핵심) ─────────────────────────────────────
         # 매 턴 전체 기록을 보내면 입력 토큰이 턴 수의 제곱으로 커진다(1,000턴 $2.10 실측).
