@@ -88,38 +88,7 @@ OrcaBonsai*/
 # 위 규칙 예외 — piper 한국어 보이스는 기본 TTS 경로라 저장소에 둔다
 !maya/models/tts/piper/ko_KR-kss-medium.onnx
 
-# ─── Digital twin (surface tool) ──────
-# Python
-__pycache__/
-*.pyc
-.venv/
-venv/
-*.egg-info/
-
-# Environment / secrets
-.env
-
-# Build outputs
-data/twin/
-data/raw/demo/
-
-# Tooling
-.idea/
-.vscode/
-.DS_Store
-# Local data, credentials, dependencies, and generated artifacts
-.env.*
-!.env.example
-data/
-node_modules/
-web/dist/
-.pytest_cache/
-.coverage
-htmlcov/
-*.log
+# ─── Digital twin (reference only — source lives upstream) ──
+# data/
 .opencode/
 .impeccable/
-
-web/dist-mobile/
-web/pnpm-lock.yaml
-web/pnpm-workspace.yaml
