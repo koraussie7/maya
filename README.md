@@ -7,7 +7,7 @@
 ## 이 저장소가 무엇인가
 
 Maya 는 **음성 대화 본체**입니다. 규칙 기반 결정 라우터(`turn_decision`/`router`)가 정본이고,
-LLM 은 자유 대화 구간에서만 붙습니다. TTS 는 PiPo/VoxCPM/Pocket 을 라우터가 골라 쓰고,
+LLM 은 자유 대화 구간에서만 붙습니다. TTS 는 piper/VoxCPM/Pocket 을 라우터가 골라 쓰고,
 합성은 문장 단위로 병렬화해 첫 소리 지연을 줄입니다.
 
 | 영역      | 경로                   | 내용                                                                |
@@ -67,9 +67,37 @@ cd maya-ui/backend && PYTHONPATH=. ../../.venv-voicemem/bin/python -m uvicorn ap
 ```bash
 cd maya-ui/app
 npm ci
-npm run dev      # 개발 서버
+npm run dev      # 개발 서버 (기본 5173)
 npm run build    # 프로덕션 빌드
 ```
+
+### UI ↔ 백엔드 연결
+
+UI 는 `src/lib/config.js` 가 주소를 결정합니다(`resolveWsUrl()` / `resolveHttpBase()`).
+
+| 우선순위 | 값 | 용도 |
+| --- | --- | --- |
+| 1 | `window.__MAYA_WS_URL__` / `window.__MAYA_HTTP_BASE__` | 호스팅 HTML 인라인 주입 |
+| 2 | `VITE_MAYA_WS_URL` / `VITE_MAYA_HTTP_BASE` | 빌드/개발 시 주입 |
+| 3 | **현재 오리진** (`wss://host<base>/ws`) | 서버가 UI 를 직접 서빙할 때 |
+| 4 | `ws://localhost:8765/ws` | 로컬 폴백 |
+
+개발 서버(5173)와 백엔드(8788)를 따로 띄울 때는:
+
+```bash
+cd maya-ui/app
+VITE_MAYA_WS_URL=ws://localhost:8788/ws \
+VITE_MAYA_HTTP_BASE=http://localhost:8788 \
+npm run dev
+```
+
+### 화면
+
+| 경로 | 내용 |
+| --- | --- |
+| `/` | 대화 화면 — 마이크 입력, 실시간 전사, 오디오 재생 |
+| `/decisions` | 결정 로그 — 룰/Laya/abstain 라우팅 이벤트 |
+| `/knowledge` | 지식 — 프로필 목록, 문서 업로드, 검색, 엔티티 그래프 |
 
 ## 테스트
 
@@ -131,3 +159,16 @@ voxcpm-api (HF Space, 클론 음성)  →  piper (ko_KR-kss-medium, 로컬)  →
 `docs/integration/digital-twin/` 의 계획 문서는 위 참고 저장소의 구조를 설명하며,
 해당 프로젝트의 코드나 자산은 포함하지 않습니다. 참고 저장소를 직접 사용하려면 원저작자의
 라이선스를 별도로 확인하세요(현재 해당 저장소에 라이선스 파일이 없습니다).
+
+## 참고한 프로젝트
+
+이 저장소에는 아래 프로젝트의 **소스를 포함하지 않습니다.** 설계 검토 단계에서 참고만 했습니다.
+
+| 프로젝트 | 라이선스 | 참고 범위 |
+| --- | --- | --- |
+| [TEN-framework/ten-framework](https://github.com/TEN-framework/ten-framework) | Apache-2.0 **+ 추가 제한**(Agora 경쟁 배포 금지, 파생물 동일 라이선스 적용) | UI 정보 구조(대화/설정 배치, 네트워크 표시, 마이크 토글)만 참고. **코드 복사 없음** — TEN 은 Next.js+React+Agora RTC 기반이고 Maya 는 SvelteKit+자체 WebSocket 이라 직접 사용하지 않았습니다 |
+| [ShlokShah01/digital-twin](https://github.com/ShlokShah01/digital-twin) | 라이선스 파일 없음(기본 저작권) | GraphRAG·지식 그래프·Pocket TTS 의 **동작 방식**만 참조해 Maya 백엔드로 재구현. 소스 미포함 |
+
+TEN 의 라이선스는 단순 Apache-2.0 이 아니므로, TEN 을 실제로 배포에 사용하려면
+[LICENSE 원문](https://raw.githubusercontent.com/TEN-framework/ten-framework/main/LICENSE)의
+추가 조항을 먼저 검토하세요. Maya 는 MIT 이며 위 제한의 적용을 받지 않습니다.
