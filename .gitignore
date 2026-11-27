@@ -67,11 +67,13 @@ maya/transcripts/
 *.json.bak
 
 # ─── Model weights (NEVER push — >100MB/file) ──
+# 재다운로드 가능한 가중치. 코드/매니페스트는 추적 유지.
 *.gguf
 *.safetensors
 *.pth
+*.pt
+*.ckpt
 *.onnx
-*.bin
 models/
 models_cache/
 gguf_downloads/
@@ -82,6 +84,9 @@ OrcaBonsai*/
 ~/
 -.aiff
 *.aiff
+
+# 위 규칙 예외 — piper 한국어 보이스는 기본 TTS 경로라 저장소에 둔다
+!maya/models/tts/piper/ko_KR-kss-medium.onnx
 
 # ─── Digital twin (surface tool) ──────
 # Python
