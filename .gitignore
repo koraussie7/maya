@@ -92,3 +92,12 @@ OrcaBonsai*/
 # data/
 .opencode/
 .impeccable/
+
+# ─── Runtime logs (never commit) ──────
+*.log
+!*.log.example
+maya-ui/backend/logs/
+.overnight/*.log
+
+# ─── Scratch ─────────────────────────
+tmp/
