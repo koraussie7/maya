@@ -97,6 +97,21 @@ A repository link opens the source code. To use the running app, start the backe
 
 The commands below use **Windows PowerShell** and call the virtual environment directly, so activation is optional. On Linux/macOS, use `.venv/bin/python` in place of `.venv\Scripts\python.exe` and `cp` instead of `Copy-Item`.
 
+### 0. Git LFS (required for model weights)
+
+Model weights (`*.onnx`, `*.gguf`, `*.safetensors`, `*.pth`, `*.pt`, `*.ckpt`) are stored with [Git LFS](https://git-lfs.com). Install the client **once per machine** before cloning:
+
+```bash
+git lfs install                 # macOS: brew install git-lfs / Linux: apt install git-lfs
+```
+
+Without it, cloning leaves the weights as small text pointers (for example `maya/models/tts/piper/ko_KR-kss-medium.onnx` stays ~133 bytes instead of ~63 MB), and the local Piper TTS path in `maya-ui/backend/app/config.py` will fail. If you already cloned without LFS:
+
+```bash
+git lfs install
+git lfs pull
+```
+
 ### 1. Install
 
 ```powershell
